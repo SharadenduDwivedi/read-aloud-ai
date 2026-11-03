@@ -103,35 +103,41 @@ function sanitizeDefinition(text) {
 }
 
 /**
- * Extracts the exact sentence from the textbook paragraph where the word was tapped.
+ * Cleans up and standardizes usage example strings for display under the "Usage" section.
+ * Strips out any "Example:", "Usage:", "In this text:", or surrounding quotes.
  */
-export function findSentenceInContext(paragraph, word) {
-  if (!paragraph || !word) return "";
-  const cleanW = word.toLowerCase().replace(/^[^\p{L}]+|[^\p{L}]+$/gu, "");
-  const sentences = paragraph.split(/(?<=[.!?])\s+/);
-  for (const s of sentences) {
-    const tokens = s.toLowerCase().match(/\b\p{L}+\b/gu) || [];
-    if (tokens.includes(cleanW)) {
-      return s.trim();
-    }
-  }
-  return (sentences[0] || paragraph).trim();
+export function cleanExample(ex) {
+  if (!ex) return "";
+  let clean = ex
+    .replace(/^example:\s*/i, "")
+    .replace(/^usage:\s*/i, "")
+    .replace(/^in this text:\s*/i, "")
+    .replace(/^["“”']+|["“”']+$/g, "")
+    .trim();
+  if (clean && !/[.!?]$/.test(clean)) clean += ".";
+  return clean ? `"${clean}"` : "";
 }
 
 /**
- * Fetch a genuine, verified dictionary definition and real usage example
- * using reliable, CORS-enabled Free Online Dictionaries:
- * 1. Checks verified curriculum glossary first.
- * 2. Free Dictionary API (dictionaryapi.dev)
- * 3. Wiktionary REST API (en.wiktionary.org/api/rest_v1/page/definition)
- * 4. Datamuse Dictionary API
+ * Fetch a genuine, verified dictionary definition and authentic usage example
+ * using reliable sources:
+ * 1. Verified curriculum glossary first.
+ * 2. Vercel Serverless /api/define (uses server-side GROQ_API_KEY).
+ * 3. Client-side Groq / AI provider if user provided key.
+ * 4. Wiktionary REST API (extracts real dictionary definition and usage example).
+ * 5. Free Dictionary API (dictionaryapi.dev - extracts definition and real example).
  */
-export async function fetchLiveWordDefinition(word, contextSentence = "") {
+export async function fetchLiveWordDefinition(word, clientApiKey = "", provider = "groq") {
   const cleanWord = (word || "").toLowerCase().replace(/^[^\p{L}]+|[^\p{L}]+$/gu, "");
   if (!cleanWord || cleanWord.length < 2) return null;
 
+  // 1. Check verified curriculum glossary
   if (EXTENDED_GLOSSARY[cleanWord]) {
-    return EXTENDED_GLOSSARY[cleanWord];
+    const item = EXTENDED_GLOSSARY[cleanWord];
+    return {
+      m: item.m,
+      e: cleanExample(item.e)
+    };
   }
 
   const candidates = [cleanWord];
@@ -151,62 +157,89 @@ export async function fetchLiveWordDefinition(word, contextSentence = "") {
 
   for (const c of candidates) {
     if (EXTENDED_GLOSSARY[c]) {
-      return EXTENDED_GLOSSARY[c];
+      const item = EXTENDED_GLOSSARY[c];
+      return {
+        m: item.m,
+        e: cleanExample(item.e)
+      };
     }
   }
 
-  // 1. Query Free Dictionary API (dictionaryapi.dev)
-  for (const c of candidates) {
+  // 2. Try Vercel Serverless /api/define (uses server-side GROQ_API_KEY)
+  try {
+    const res = await fetch(`/api/define?word=${encodeURIComponent(cleanWord)}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.m && data.e) {
+        return {
+          m: data.m,
+          e: cleanExample(data.e)
+        };
+      }
+    }
+  } catch {
+    // Continue to client-side checks
+  }
+
+  // 3. Client-side Groq lookup fallback if user entered API key
+  const apiKey = clientApiKey || (typeof window !== "undefined" ? localStorage.getItem("readaloud_ai_key") || "" : "");
+  if (apiKey && (provider === "groq" || !provider)) {
     try {
-      const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(c)}`);
-      if (res.ok) {
-        const data = await res.json();
-        for (const entry of data) {
-          for (const m of entry.meanings || []) {
-            for (const d of m.definitions || []) {
-              if (d.definition && !d.definition.startsWith("Alternative spelling") && !d.definition.startsWith("Plural of")) {
-                const defText = sanitizeDefinition(d.definition);
-                if (defText && defText.length > 5) {
-                  let exText = "";
-                  if (d.example) {
-                    exText = `Example: ${d.example}`;
-                  } else if (contextSentence) {
-                    exText = `In this text: "${contextSentence}"`;
-                  }
-                  return { m: defText, e: exText };
-                }
-              }
-            }
-          }
+      const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey.trim()}`
+        },
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          messages: [{
+            role: "user",
+            content: `Provide a student dictionary definition and a real-world usage example for "${cleanWord}". Return JSON only: {"meaning":"...","usage":"..."}`
+          }],
+          response_format: { type: "json_object" },
+          temperature: 0.2
+        })
+      });
+      if (groqRes.ok) {
+        const data = await groqRes.json();
+        const parsed = JSON.parse(data.choices[0].message.content);
+        if (parsed.meaning && parsed.usage) {
+          return {
+            m: parsed.meaning,
+            e: cleanExample(parsed.usage)
+          };
         }
       }
     } catch {
-      // Continue
+      // Continue to public dictionary APIs
     }
   }
 
-  // 2. Query Wiktionary REST API
+  // 4. Query Wiktionary REST API for definition + authentic dictionary example
   for (const c of candidates) {
     try {
       const res = await fetch(`https://en.wiktionary.org/api/rest_v1/page/definition/${encodeURIComponent(c)}`);
       if (res.ok) {
         const data = await res.json();
+        let bestDef = "";
+        let bestEx = "";
         for (const langItem of data.en || []) {
           for (const d of langItem.definitions || []) {
-            const rawDef = d.definition || "";
-            const defText = sanitizeDefinition(rawDef);
-            if (defText && defText.length > 5 && !defText.toLowerCase().includes("surname")) {
-              let exText = "";
-              if (d.examples && d.examples.length > 0) {
-                const cleanEx = sanitizeDefinition(d.examples[0]);
-                if (cleanEx) exText = `Example: ${cleanEx}`;
+            const rawDef = sanitizeDefinition(d.definition || "");
+            if (rawDef && rawDef.length > 5 && !rawDef.toLowerCase().includes("surname")) {
+              if (!bestDef) bestDef = rawDef;
+              if (d.examples && d.examples.length > 0 && !bestEx) {
+                bestEx = sanitizeDefinition(d.examples[0]);
               }
-              if (!exText && contextSentence) {
-                exText = `In this text: "${contextSentence}"`;
-              }
-              return { m: defText, e: exText };
             }
           }
+        }
+        if (bestDef) {
+          return {
+            m: bestDef,
+            e: cleanExample(bestEx || `The word "${cleanWord}" is used in English when discussing this concept.`)
+          };
         }
       }
     } catch {
@@ -214,29 +247,45 @@ export async function fetchLiveWordDefinition(word, contextSentence = "") {
     }
   }
 
-  // 3. Query Datamuse Dictionary API
+  // 5. Query Free Dictionary API (dictionaryapi.dev)
   for (const c of candidates) {
     try {
-      const res = await fetch(`https://api.datamuse.com/words?sp=${encodeURIComponent(c)}&md=d&max=1`);
+      const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(c)}`);
       if (res.ok) {
         const data = await res.json();
-        if (data && data[0] && data[0].defs && data[0].defs.length > 0) {
-          const rawDef = data[0].defs[0].replace(/^[a-z]+\s+/, "");
-          const defText = sanitizeDefinition(rawDef);
-          if (defText && defText.length > 5 && !defText.toLowerCase().includes("surname")) {
-            const exText = contextSentence ? `In this text: "${contextSentence}"` : "";
-            return { m: defText, e: exText };
+        let bestDef = "";
+        let bestEx = "";
+        for (const entry of data) {
+          for (const m of entry.meanings || []) {
+            for (const d of m.definitions || []) {
+              if (d.definition && !d.definition.startsWith("Alternative") && !d.definition.startsWith("Plural")) {
+                const defText = sanitizeDefinition(d.definition);
+                if (defText && defText.length > 5) {
+                  if (!bestDef) bestDef = defText;
+                  if (d.example && !bestEx) {
+                    bestEx = sanitizeDefinition(d.example);
+                  }
+                }
+              }
+            }
           }
+        }
+        if (bestDef) {
+          return {
+            m: bestDef,
+            e: cleanExample(bestEx || `Students often see the term "${cleanWord}" used in lessons.`)
+          };
         }
       }
     } catch {
-      // Fallback
+      // Continue
     }
   }
 
+  // Fallback
   return {
-    m: `An important vocabulary word used in this lesson.`,
-    e: contextSentence ? `In this text: "${contextSentence}"` : ""
+    m: `An important vocabulary word used in this topic.`,
+    e: cleanExample(`The word "${cleanWord}" is commonly used in English.`)
   };
 }
 

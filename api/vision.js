@@ -138,3 +138,4 @@ Return ONLY a valid JSON object matching this exact schema:
     return res.status(500).json({ error: "Server vision processing error", message: err.message });
   }
 }
+

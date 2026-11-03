@@ -9,7 +9,7 @@ import {
   processWithGemini,
   extractVocabulary,
   fetchLiveWordDefinition,
-  findSentenceInContext,
+  cleanExample,
   EXTENDED_GLOSSARY
 } from "./aiService";
 
@@ -552,24 +552,18 @@ export default function App() {
 
     const rect = e.currentTarget.getBoundingClientRect();
     const cardWidth = 320;
-    const cardHeight = 160;
+    const cardHeight = 170;
 
     const left = Math.min(Math.max(16, rect.left), window.innerWidth - cardWidth - 16);
     const below = rect.bottom + cardHeight + 12 < window.innerHeight;
     const top = below ? rect.bottom + 8 : Math.max(16, rect.top - cardHeight - 8);
 
-    const contextSentence = findSentenceInContext(currentParas[pi] || "", raw);
-
     if (item && item.m && !item.needLookup && mode !== "trans") {
-      let ex = item.e || (contextSentence ? `In this text: "${contextSentence}"` : "");
-      if (ex && !ex.startsWith("Example:") && !ex.startsWith("In this text:")) {
-        ex = `Example: ${ex}`;
-      }
       setCard({
         visible: true,
         word: raw,
         meaning: item.m,
-        example: ex,
+        example: cleanExample(item.e || `The word "${raw}" is commonly used in English.`),
         x: left,
         y: top,
         pi,
@@ -591,20 +585,21 @@ export default function App() {
     });
 
     try {
-      const liveDef = await fetchLiveWordDefinition(raw, contextSentence);
+      const liveDef = await fetchLiveWordDefinition(raw, apiKey, aiProvider);
       if (liveDef) {
+        const cleanedEx = cleanExample(liveDef.e);
         setDoc((prev) => ({
           ...prev,
           glossary: {
             ...(prev.glossary || {}),
-            [key]: { m: liveDef.m, e: liveDef.e }
+            [key]: { m: liveDef.m, e: cleanedEx }
           }
         }));
         setCard({
           visible: true,
           word: raw,
           meaning: liveDef.m,
-          example: liveDef.e || (contextSentence ? `In this text: "${contextSentence}"` : ""),
+          example: cleanedEx,
           x: left,
           y: top,
           pi,
@@ -1051,13 +1046,18 @@ export default function App() {
               Key Term
             </span>
           </div>
-          <p id="cMeaning" style={{ fontWeight: 500, lineHeight: 1.45, fontSize: "14px" }}>
+          <p id="cMeaning" style={{ fontWeight: 500, lineHeight: 1.45, fontSize: "14px", margin: "4px 0 8px" }}>
             {card.meaning}
           </p>
           {card.example && (
-            <p className="ex" id="cEx" style={{ fontStyle: "italic", borderLeft: "3px solid var(--accent)", paddingLeft: "8px", margin: "2px 0 6px" }}>
-              {card.example}
-            </p>
+            <div style={{ margin: "6px 0 10px" }}>
+              <span style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--muted)", display: "block", marginBottom: "3px" }}>
+                Usage
+              </span>
+              <p className="ex" id="cEx" style={{ fontStyle: "italic", borderLeft: "3px solid var(--accent)", paddingLeft: "8px", margin: 0, color: "var(--ink)", fontSize: "13.5px", lineHeight: 1.45 }}>
+                {card.example}
+              </p>
+            </div>
           )}
           <div className="row" style={{ marginTop: "4px" }}>
             <button className="btn" id="cHear" type="button" onClick={handleHearWord}>
