@@ -3,6 +3,7 @@ import { SAMPLE, LANGUAGES } from "./sampleData";
 import {
   performClientOCR,
   simplifyTextLocally,
+  simplifyTextWithAI,
   translateTextFree,
   processWithGemini,
   extractVocabulary,
@@ -28,7 +29,9 @@ export default function App() {
 
   // Settings & API Configuration
   const [showSettings, setShowSettings] = useState(false);
-  const [apiKey, setApiKey] = useState(() => localStorage.getItem("readaloud_gemini_key") || "");
+  const [aiProvider, setAiProvider] = useState(() => localStorage.getItem("readaloud_ai_provider") || "groq");
+  const [apiKey, setApiKey] = useState(() => localStorage.getItem("readaloud_ai_key") || "");
+  const [tempProvider, setTempProvider] = useState(aiProvider);
   const [tempApiKey, setTempApiKey] = useState(apiKey);
 
   // Pipeline steps
@@ -363,11 +366,11 @@ export default function App() {
     if (need) {
       setSteps((s) => ({ ...s, s3: "on" }));
       setIsBusy(true);
-      setStatusText(newMode === "simple" ? "Rewriting in simpler English…" : `Translating into ${langName}…`);
+      setStatusText(newMode === "simple" ? "Rewriting in simpler English with AI…" : `Translating into ${langName}…`);
 
       try {
         if (newMode === "simple") {
-          const simplified = simplifyTextLocally(doc.paras);
+          const simplified = await simplifyTextWithAI(doc.paras, { provider: aiProvider, apiKey });
           setDoc((prev) => ({ ...prev, simple: simplified }));
         } else {
           // If translation already cached in sample
@@ -503,14 +506,19 @@ export default function App() {
     try {
       let parsedDoc;
 
-      // If user supplied a Gemini API key, use multimodal vision
-      if (apiKey.trim()) {
+      // If user supplied Gemini API key and selected Gemini
+      if (aiProvider === "gemini" && apiKey.trim()) {
         setStatusText("Analyzing image with Gemini Vision AI…");
         parsedDoc = await processWithGemini(apiKey.trim(), file, langName);
       } else {
         // Zero-setup: Client-side In-Browser Tesseract.js OCR
         setStatusText("Extracting textbook text directly in your browser…");
         parsedDoc = await performClientOCR(file);
+
+        // Generate intelligent Simpler English version with AI Agent or local rule engine
+        setStatusText("Generating Simpler English version preserving all keywords…");
+        const simple = await simplifyTextWithAI(parsedDoc.paras, { provider: aiProvider, apiKey });
+        parsedDoc.simple = simple;
       }
 
       setDoc(parsedDoc);
@@ -624,10 +632,12 @@ export default function App() {
   // Save Settings Modal
   const handleSaveSettings = () => {
     const trimmed = tempApiKey.trim();
+    setAiProvider(tempProvider);
     setApiKey(trimmed);
-    localStorage.setItem("readaloud_gemini_key", trimmed);
+    localStorage.setItem("readaloud_ai_provider", tempProvider);
+    localStorage.setItem("readaloud_ai_key", trimmed);
     setShowSettings(false);
-    setStatusText(trimmed ? "Gemini AI Vision key saved!" : "Using default local OCR engine.");
+    setStatusText(`AI Settings updated: using ${tempProvider.toUpperCase()}`);
   };
 
   // Close card when pressing Escape or clicking outside
@@ -674,9 +684,9 @@ export default function App() {
             style={{ padding: "5px 12px", fontSize: "12px", borderRadius: "999px" }}
             onClick={() => setShowSettings(true)}
             type="button"
-            title="Configure OCR & Vision Engine"
+            title="Configure AI Agent & Engine"
           >
-            ⚙️ AI Settings {apiKey.trim() ? "• Cloud" : "• Local OCR"}
+            ⚙️ AI Agent: {aiProvider.toUpperCase()} {apiKey.trim() ? "• Connected" : (aiProvider === "ollama" ? "• Local" : "• Offline")}
           </button>
           <span className="tag">Prototype v0.3 · Group 4</span>
         </div>
@@ -1078,25 +1088,24 @@ export default function App() {
             className="card"
             style={{
               position: "static",
-              maxWidth: "460px",
+              maxWidth: "480px",
               width: "100%",
               boxShadow: "0 20px 40px rgba(0,0,0,0.25)"
             }}
           >
-            <h3>⚙️ AI &amp; Vision Engine Settings</h3>
+            <h3>⚙️ AI Agent &amp; Model Settings</h3>
             <p style={{ color: "var(--muted)", fontSize: "13px" }}>
-              By default, ReadAloud AI uses <b>client-side Tesseract.js OCR</b> to read photos directly in your browser with <b>zero setup required</b>.
+              Configure your AI agent for intelligent simplification, keyword analysis, and reading comprehension.
             </p>
+
             <div className="group" style={{ margin: "8px 0" }}>
-              <label className="label" htmlFor="geminiKey">
-                Optional: Google Gemini API Key (Multimodal Vision)
+              <label className="label" htmlFor="aiProviderSelect">
+                Select AI Agent Provider
               </label>
-              <input
-                id="geminiKey"
-                type="password"
-                placeholder="AIzaSy..."
-                value={tempApiKey}
-                onChange={(e) => setTempApiKey(e.target.value)}
+              <select
+                id="aiProviderSelect"
+                value={tempProvider}
+                onChange={(e) => setTempProvider(e.target.value)}
                 style={{
                   width: "100%",
                   padding: "9px 12px",
@@ -1106,12 +1115,88 @@ export default function App() {
                   color: "var(--ink)",
                   fontSize: "14px"
                 }}
-              />
-              <span className="note" style={{ fontSize: "12px" }}>
-                Entering a free Gemini 1.5 Flash key enables cloud vision enhancement and instant 10-language translations for custom textbook pages. Leave blank to use local in-browser OCR.
-              </span>
+              >
+                <option value="groq">🦙 Groq (Open-Source Llama 3.3 70B — Free &amp; Superfast)</option>
+                <option value="openrouter">🌐 OpenRouter (Free Open-Source Models: Llama 3.2, Mistral, Gemma)</option>
+                <option value="gemini">🤖 Google Gemini (Gemini 1.5 Flash — Free Multimodal Vision)</option>
+                <option value="ollama">💻 Local Ollama (100% Offline Open-Source on localhost:11434)</option>
+                <option value="local">⚙️ Offline Rule Engine (No API Key Required)</option>
+              </select>
             </div>
-            <div className="row" style={{ marginTop: "12px" }}>
+
+            {tempProvider !== "ollama" && tempProvider !== "local" && (
+              <div className="group" style={{ margin: "8px 0" }}>
+                <label className="label" htmlFor="aiApiKey">
+                  {tempProvider === "groq"
+                    ? "Groq API Key (gsk_...)"
+                    : tempProvider === "openrouter"
+                    ? "OpenRouter API Key (sk-or-...)"
+                    : "Google Gemini API Key (AIzaSy...)"}
+                </label>
+                <input
+                  id="aiApiKey"
+                  type="password"
+                  placeholder={
+                    tempProvider === "groq"
+                      ? "gsk_..."
+                      : tempProvider === "openrouter"
+                      ? "sk-or-v1-..."
+                      : "AIzaSy..."
+                  }
+                  value={tempApiKey}
+                  onChange={(e) => setTempApiKey(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: "9px 12px",
+                    borderRadius: "8px",
+                    border: "1px solid var(--line)",
+                    background: "var(--surface)",
+                    color: "var(--ink)",
+                    fontSize: "14px"
+                  }}
+                />
+                <span className="note" style={{ fontSize: "12px", marginTop: "4px" }}>
+                  {tempProvider === "groq" && (
+                    <span>
+                      Get a 100% free open-source key at{" "}
+                      <a href="https://console.groq.com/keys" target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>
+                        console.groq.com
+                      </a>
+                    </span>
+                  )}
+                  {tempProvider === "openrouter" && (
+                    <span>
+                      Get a free key for open-source models at{" "}
+                      <a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>
+                        openrouter.ai
+                      </a>
+                    </span>
+                  )}
+                  {tempProvider === "gemini" && (
+                    <span>
+                      Get a free Gemini key at{" "}
+                      <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>
+                        aistudio.google.com
+                      </a>
+                    </span>
+                  )}
+                </span>
+              </div>
+            )}
+
+            {tempProvider === "ollama" && (
+              <div style={{ background: "var(--accent-soft)", padding: "10px", borderRadius: "8px", fontSize: "12.5px" }}>
+                Runs completely offline via local Ollama. Ensure <code>ollama run llama3.2</code> is running on your machine.
+              </div>
+            )}
+
+            {tempProvider === "local" && (
+              <div style={{ background: "var(--accent-soft)", padding: "10px", borderRadius: "8px", fontSize: "12.5px" }}>
+                Uses client-side rule-based simplification and offline curriculum dictionaries. No external API needed.
+              </div>
+            )}
+
+            <div className="row" style={{ marginTop: "14px" }}>
               <button className="btn primary" type="button" onClick={handleSaveSettings}>
                 Save Settings
               </button>

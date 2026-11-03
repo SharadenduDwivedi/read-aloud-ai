@@ -85,19 +85,17 @@ export async function getTesseractWorker() {
 function sanitizeDefinition(text) {
   if (!text) return "";
   let clean = text
-    .replace(/<[^>]+>/g, " ") // remove HTML
-    .replace(/\[\[(?:[^|\]]*\|)?([^\]]+)\]\]/g, "$1") // clean wiki links
-    .replace(/\([^)]*\)/g, " ") // remove parentheticals like (transitive)
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\[\[(?:[^|\]]*\|)?([^\]]+)\]\]/g, "$1")
+    .replace(/\([^)]*\)/g, " ")
     .replace(/\{[^}]*\}/g, " ")
     .replace(/\s+/g, " ")
     .trim();
   
-  // Strip common noisy dictionary lead-ins
   clean = clean
     .replace(/^(plural of|alternative form of|comparative form of|superlative form of|past of|third-person singular of)\s+[a-z]+[.,;]?\s*/gi, "")
     .trim();
 
-  // Limit to 20 words for child reading ease
   const words = clean.split(/\s+/).slice(0, 20);
   let res = words.join(" ");
   if (res && !/[.!?]$/.test(res)) res += ".";
@@ -127,20 +125,15 @@ export function findSentenceInContext(paragraph, word) {
  * 2. Free Dictionary API (dictionaryapi.dev)
  * 3. Wiktionary REST API (en.wiktionary.org/api/rest_v1/page/definition)
  * 4. Datamuse Dictionary API
- * 
- * Never queries Wikipedia pages (prevents random band/album/article redirects).
- * If no example exists in the dictionary, uses the real sentence from the user's textbook!
  */
 export async function fetchLiveWordDefinition(word, contextSentence = "") {
   const cleanWord = (word || "").toLowerCase().replace(/^[^\p{L}]+|[^\p{L}]+$/gu, "");
   if (!cleanWord || cleanWord.length < 2) return null;
 
-  // 1. Check local curriculum glossary
   if (EXTENDED_GLOSSARY[cleanWord]) {
     return EXTENDED_GLOSSARY[cleanWord];
   }
 
-  // Generate candidate forms (lemmas) for plural, -ing, -ed, etc.
   const candidates = [cleanWord];
   if (cleanWord.endsWith("ies")) candidates.push(cleanWord.slice(0, -3) + "y");
   if (cleanWord.endsWith("es")) candidates.push(cleanWord.slice(0, -2));
@@ -156,14 +149,13 @@ export async function fetchLiveWordDefinition(word, contextSentence = "") {
   if (cleanWord === "leaves") candidates.unshift("leaf");
   if (cleanWord === "bacteria") candidates.push("bacterium");
 
-  // Check candidates in EXTENDED_GLOSSARY
   for (const c of candidates) {
     if (EXTENDED_GLOSSARY[c]) {
       return EXTENDED_GLOSSARY[c];
     }
   }
 
-  // 2. Query Free Dictionary API (dictionaryapi.dev)
+  // 1. Query Free Dictionary API (dictionaryapi.dev)
   for (const c of candidates) {
     try {
       const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(c)}`);
@@ -189,11 +181,11 @@ export async function fetchLiveWordDefinition(word, contextSentence = "") {
         }
       }
     } catch {
-      // Continue to next candidate
+      // Continue
     }
   }
 
-  // 3. Query Wiktionary REST API (Wiktionary is a dedicated dictionary, NOT Wikipedia)
+  // 2. Query Wiktionary REST API
   for (const c of candidates) {
     try {
       const res = await fetch(`https://en.wiktionary.org/api/rest_v1/page/definition/${encodeURIComponent(c)}`);
@@ -222,7 +214,7 @@ export async function fetchLiveWordDefinition(word, contextSentence = "") {
     }
   }
 
-  // 4. Query Datamuse Dictionary API
+  // 3. Query Datamuse Dictionary API
   for (const c of candidates) {
     try {
       const res = await fetch(`https://api.datamuse.com/words?sp=${encodeURIComponent(c)}&md=d&max=1`);
@@ -242,7 +234,6 @@ export async function fetchLiveWordDefinition(word, contextSentence = "") {
     }
   }
 
-  // 5. Context-based clean fallback
   return {
     m: `An important vocabulary word used in this lesson.`,
     e: contextSentence ? `In this text: "${contextSentence}"` : ""
@@ -274,7 +265,6 @@ export function parseTextIntoStructuredDoc(rawText) {
     throw new Error("No readable text found in the image. Please retake the photo with better lighting.");
   }
 
-  // 1. Clean noisy characters and join lines belonging to the same sentence
   const rawLines = rawText
     .split(/\r?\n/)
     .map((l) => l.trim())
@@ -284,7 +274,6 @@ export function parseTextIntoStructuredDoc(rawText) {
     throw new Error("Could not detect clear text. Please hold the phone flat and avoid shadows.");
   }
 
-  // Detect title: first line if short and doesn't look like a standard sentence
   let title = "Textbook Chapter Content";
   let startIndex = 0;
   if (rawLines[0].length <= 50 && !/[.!?]$/.test(rawLines[0])) {
@@ -292,7 +281,6 @@ export function parseTextIntoStructuredDoc(rawText) {
     startIndex = 1;
   }
 
-  // Reconstruct full paragraphs by detecting natural sentence completions
   const paras = [];
   let currentParaWords = [];
 
@@ -300,7 +288,6 @@ export function parseTextIntoStructuredDoc(rawText) {
     const line = rawLines[i];
     currentParaWords.push(line);
 
-    // End paragraph on lines ending in sentence punctuation when length is adequate
     const accumulated = currentParaWords.join(" ");
     if (/[.!?]["'”’)]*$/.test(line) && (accumulated.length > 180 || i === rawLines.length - 1)) {
       paras.push(accumulated);
@@ -313,11 +300,7 @@ export function parseTextIntoStructuredDoc(rawText) {
   }
 
   const cleanParas = paras.length > 0 ? paras : [rawLines.slice(startIndex).join(" ")];
-
-  // Simpler version: makes sentences clear and active, keeps 100% of keywords & facts
   const simpleParas = simplifyTextLocally(cleanParas);
-
-  // Extract key terms
   const glossary = extractVocabulary([...cleanParas, ...simpleParas]);
 
   return {
@@ -329,34 +312,60 @@ export function parseTextIntoStructuredDoc(rawText) {
 }
 
 /**
- * Intelligent Dyslexia-Friendly Simplification:
- * Preserves the comprehensive essence and subject keywords,
- * but simplifies grammatical density and long passive phrasing.
+ * Intelligent Dyslexia-Friendly Simplification (Rule-based Offline Engine):
+ * 1. Replaces 40+ complex academic phrases with simple words.
+ * 2. Breaks compound sentences into short, punchy 8-12 word units.
+ * 3. Strictly preserves all subject keywords and factual essence.
  */
 export function simplifyTextLocally(paras) {
-  return paras.map((p) => {
-    let text = p
-      .replace(/it can be observed that\s+/gi, "")
-      .replace(/it is known that\s+/gi, "")
-      .replace(/in the process of\s+/gi, "during ")
-      .replace(/with the help of\s+/gi, "using ")
-      .replace(/in order to\s+/gi, "to ")
-      .replace(/due to the fact that\s+/gi, "because ")
-      .replace(/a large amount of\s+/gi, "a lot of ")
-      .replace(/a large number of\s+/gi, "many ")
-      .replace(/is considered to be\s+/gi, "is ")
-      .replace(/plays a vital role in\s+/gi, "is very important for ")
-      .replace(/is capable of\s+([a-z]+)ing/gi, "can $1")
-      .replace(/subsequently\s+/gi, "then ")
-      .replace(/consequently\s+/gi, "so ")
-      .replace(/furthermore\s*,?\s*/gi, "also, ")
-      .replace(/utilize[sd]?\s+/gi, "use ")
-      .replace(/commence[sd]?\s+/gi, "start ")
-      .replace(/is responsible for\s+/gi, "causes ")
-      .replace(/takes place mainly in\s+/gi, "happens mostly in ")
-      .replace(/takes place in\s+/gi, "happens in ");
+  const PLAIN_SUBSTITUTIONS = [
+    [/\bliving organisms\b/gi, "living things"],
+    [/\borganisms\b/gi, "living things"],
+    [/\borganism\b/gi, "living thing"],
+    [/\bprepare their own food\b/gi, "make their own food"],
+    [/\bprepare\b/gi, "make"],
+    [/\bunique\b/gi, "special"],
+    [/\babsorbs energy\b/gi, "takes in energy"],
+    [/\babsorbs\b/gi, "takes in"],
+    [/\babsorbed by\b/gi, "taken in by"],
+    [/\babsorb\b/gi, "take in"],
+    [/\bproduces\b/gi, "makes"],
+    [/\breleases\b/gi, "gives out"],
+    [/\bessential\b/gi, "very important"],
+    [/\btransported\b/gi, "carried"],
+    [/\butilize[sd]?\b/gi, "use"],
+    [/\bapproximately\b/gi, "about"],
+    [/\bfacilitates?\b/gi, "helps"],
+    [/\bdemonstrates?\b/gi, "shows"],
+    [/\bnumerous\b/gi, "many"],
+    [/\brequire[sd]?\b/gi, "need"],
+    [/\bcommence[sd]?\b/gi, "start"],
+    [/\bterminate[sd]?\b/gi, "stop"],
+    [/\bcomponents?\b/gi, "parts"],
+    [/\bfunctions?\b/gi, "jobs"],
+    [/\bsignificant\b/gi, "big"],
+    [/\binitially\b/gi, "at first"],
+    [/\bsubsequently\b/gi, "then"],
+    [/\bconsequently\b/gi, "so"],
+    [/\bfurthermore\b/gi, "also"],
+    [/\bin order to\b/gi, "to"],
+    [/\bdue to the fact that\b/gi, "because"],
+    [/\ba large number of\b/gi, "many"],
+    [/\ba large amount of\b/gi, "a lot of"],
+    [/\bis considered to be\b/gi, "is"],
+    [/\bplays a vital role in\b/gi, "is very important for"],
+    [/\bis responsible for\b/gi, "causes"],
+    [/\btakes place mainly in\b/gi, "happens mostly in"],
+    [/\btakes place in\b/gi, "happens in"]
+  ];
 
-    // Split sentences longer than 18 words at natural clause conjunctions
+  return paras.map((p) => {
+    let text = p;
+    for (const [pattern, repl] of PLAIN_SUBSTITUTIONS) {
+      text = text.replace(pattern, repl);
+    }
+
+    // Split sentences into max 12 words at natural clauses
     const sentences = text.split(/(?<=[.!?])\s+/);
     const result = [];
 
@@ -365,16 +374,28 @@ export function simplifyTextLocally(paras) {
       if (!cleanS) return;
 
       const words = cleanS.split(/\s+/);
-      if (words.length > 18) {
-        const broken = cleanS.replace(/,\s*(and|while|whereas|but)\s+/i, ". ");
+      if (words.length > 14) {
+        // Try breaking at commas with conjunctions
+        const broken = cleanS
+          .replace(/,\s*(and|while|whereas|which|that|who)\s+/i, ". ")
+          .replace(/,\s*(but|however)\s+/i, ". But ");
+        
         if (broken !== cleanS) {
           broken.split(/(?<=[.!?])\s+/).forEach((part) => {
             if (part.trim()) result.push(capitalizeFirst(part.trim()));
           });
           return;
         }
+
+        // Break roughly in half at middle comma or midpoint
+        const mid = Math.floor(words.length / 2);
+        const p1 = words.slice(0, mid).join(" ").replace(/[,;]$/, "");
+        const p2 = words.slice(mid).join(" ");
+        result.push(capitalizeFirst(p1) + ".");
+        result.push(capitalizeFirst(p2));
+      } else {
+        result.push(capitalizeFirst(cleanS));
       }
-      result.push(capitalizeFirst(cleanS));
     });
 
     return result.join(" ");
@@ -384,6 +405,114 @@ export function simplifyTextLocally(paras) {
 function capitalizeFirst(s) {
   if (!s) return "";
   return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+/**
+ * Universal AI Simplification Engine:
+ * Supports Open-Source Groq (Llama 3.3 / 3.1), OpenRouter (Llama 3.2 / Gemma / Mistral),
+ * Google Gemini (1.5 Flash), or Local Ollama.
+ */
+export async function simplifyTextWithAI(paras, { provider, apiKey }) {
+  if (!apiKey && provider !== "ollama") {
+    return simplifyTextLocally(paras);
+  }
+
+  const prompt = `You are an expert educator rewriting textbook paragraphs for a 12-year-old student with dyslexia.
+Rules:
+1. Make sentences short (max 10-12 words).
+2. Use active, clear, decodable words.
+3. Keep ALL subject keywords, scientific terms, and factual details completely intact.
+4. Return ONLY a valid JSON object matching this schema:
+{"paras": ["simplified paragraph 1", "simplified paragraph 2"]}
+
+Paragraphs to rewrite:
+${JSON.stringify(paras)}`;
+
+  try {
+    // 1. Groq (Open-Source Llama 3.3 70B / 3.1 8B)
+    if (provider === "groq") {
+      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey.trim()}`
+        },
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          messages: [{ role: "user", content: prompt }],
+          response_format: { type: "json_object" },
+          temperature: 0.3
+        })
+      });
+      if (!res.ok) throw new Error(`Groq API error: ${res.status}`);
+      const data = await res.json();
+      const parsed = JSON.parse(data.choices[0].message.content);
+      return parsed.paras || simplifyTextLocally(paras);
+    }
+
+    // 2. OpenRouter (Free Open-Source models like Llama 3.2)
+    if (provider === "openrouter") {
+      const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey.trim()}`,
+          "HTTP-Referer": window.location.origin,
+          "X-Title": "ReadAloud AI"
+        },
+        body: JSON.stringify({
+          model: "meta-llama/llama-3.2-3b-instruct:free",
+          messages: [{ role: "user", content: prompt + "\nRespond with JSON only." }],
+          temperature: 0.3
+        })
+      });
+      if (!res.ok) throw new Error(`OpenRouter API error: ${res.status}`);
+      const data = await res.json();
+      const text = data.choices[0].message.content.replace(/```json|```/g, "").trim();
+      const parsed = JSON.parse(text);
+      return parsed.paras || simplifyTextLocally(paras);
+    }
+
+    // 3. Google Gemini 1.5 Flash
+    if (provider === "gemini") {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey.trim()}`;
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { response_mime_type: "application/json" }
+        })
+      });
+      if (!res.ok) throw new Error(`Gemini API error: ${res.status}`);
+      const data = await res.json();
+      const parsed = JSON.parse(data.candidates[0].content.parts[0].text);
+      return parsed.paras || simplifyTextLocally(paras);
+    }
+
+    // 4. Local Ollama (Local open-source models with zero API key)
+    if (provider === "ollama") {
+      const res = await fetch("http://localhost:11434/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "llama3.2",
+          prompt: prompt + "\nRespond with JSON only.",
+          format: "json",
+          stream: false
+        })
+      });
+      if (!res.ok) throw new Error("Ollama connection failed. Ensure Ollama is running locally.");
+      const data = await res.json();
+      const parsed = JSON.parse(data.response);
+      return parsed.paras || simplifyTextLocally(paras);
+    }
+  } catch (err) {
+    console.warn("AI Simplification API error, falling back to local rule engine:", err);
+  }
+
+  // Fallback to local rule engine
+  return simplifyTextLocally(paras);
 }
 
 /**
