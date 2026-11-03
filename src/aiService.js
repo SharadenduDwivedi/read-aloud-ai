@@ -413,6 +413,23 @@ function capitalizeFirst(s) {
  * Google Gemini (1.5 Flash), or Local Ollama.
  */
 export async function simplifyTextWithAI(paras, { provider, apiKey }) {
+  // 0. If hosted on Vercel, try secure serverless proxy first (server-side GROQ_API_KEY, zero client key exposure)
+  try {
+    const serverRes = await fetch("/api/simplify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ paras })
+    });
+    if (serverRes.ok) {
+      const data = await serverRes.json();
+      if (data && data.paras && Array.isArray(data.paras)) {
+        return data.paras;
+      }
+    }
+  } catch {
+    // Continue to client-side provider or fallback
+  }
+
   if (!apiKey && provider !== "ollama") {
     return simplifyTextLocally(paras);
   }
