@@ -1,4 +1,12 @@
 {
-  "cleanUrls": true
+  "buildCommand": "vite build",
+  "outputDirectory": "dist",
+  "cleanUrls": true,
+  "redirects": [
+    {
+      "source": "/(.*)",
+      "destination": "https://claude.ai/artifact/XFNKG2jeuFeE65yTKpb1kX",
+      "permanent": false
+    }
+  ]
 }
-
