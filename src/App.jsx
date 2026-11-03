@@ -29,8 +29,14 @@ export default function App() {
 
   // Settings & API Configuration
   const [showSettings, setShowSettings] = useState(false);
-  const [aiProvider, setAiProvider] = useState(() => localStorage.getItem("readaloud_ai_provider") || "groq");
-  const [apiKey, setApiKey] = useState(() => localStorage.getItem("readaloud_ai_key") || "");
+  const [aiProvider, setAiProvider] = useState(
+    () => localStorage.getItem("readaloud_ai_provider") || "groq"
+  );
+  const [apiKey, setApiKey] = useState(
+    () =>
+      localStorage.getItem("readaloud_ai_key") ||
+      (import.meta.env.VITE_GROQ_API_KEY || "")
+  );
   const [tempProvider, setTempProvider] = useState(aiProvider);
   const [tempApiKey, setTempApiKey] = useState(apiKey);
 
