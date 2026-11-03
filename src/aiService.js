@@ -664,6 +664,55 @@ Return ONLY a valid JSON object matching this schema:
   };
 }
 
+/**
+ * Universal Image-to-Text Vision Processing:
+ * 1. Checks Vercel Serverless /api/vision (secure, uses server-side GROQ_API_KEY / GEMINI_API_KEY).
+ * 2. If client-side Gemini key exists, runs processWithGemini.
+ * 3. Fallback: runs client-side Tesseract.js OCR.
+ */
+export async function processImageWithAI(file, langName = "Hindi", clientApiKey = "", onStatus = () => {}) {
+  const base64 = await fileToBase64(file);
+  const mimeType = file.type || "image/jpeg";
+
+  // 1. Try Vercel Serverless Vision endpoint (secure, server-side Groq/Gemini key)
+  try {
+    onStatus("Reading page with AI Vision…");
+    const serverRes = await fetch("/api/vision", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        imageBase64: base64,
+        mimeType,
+        langName
+      })
+    });
+
+    if (serverRes.ok) {
+      const data = await serverRes.json();
+      if (data && data.paras && data.paras.length > 0) {
+        return data;
+      }
+    }
+  } catch (e) {
+    console.warn("Serverless vision not available or failed:", e);
+  }
+
+  // 2. Try Client-side Gemini if user supplied key in UI
+  if (clientApiKey && clientApiKey.trim()) {
+    try {
+      onStatus("Analyzing image with Gemini Vision AI…");
+      return await processWithGemini(clientApiKey.trim(), file, langName);
+    } catch (e) {
+      console.warn("Client Gemini Vision failed, falling back to Tesseract OCR:", e);
+    }
+  }
+
+  // 3. Client-side local Tesseract.js OCR fallback
+  onStatus("Extracting textbook text directly in your browser with OCR…");
+  const parsedDoc = await performClientOCR(file);
+  return parsedDoc;
+}
+
 function fileToBase64(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
