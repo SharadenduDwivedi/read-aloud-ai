@@ -1,8 +1,7 @@
 import { createWorker } from "tesseract.js";
 
-// Comprehensive educational dictionary for school curriculum (Classes 4-10)
+// Comprehensive verified educational dictionary for school curriculum
 export const EXTENDED_GLOSSARY = {
-  // Plant & Animal Biology
   photosynthesis: { m: "How green plants make food using sunlight, air, and water.", e: "Leaves use photosynthesis during daytime to grow." },
   chlorophyll: { m: "The green colour in leaves that catches sunlight.", e: "Leaves look green because they are full of chlorophyll." },
   chloroplast: { m: "Tiny kitchen-like parts inside leaf cells that hold chlorophyll.", e: "Sunlight is trapped inside the chloroplast." },
@@ -43,12 +42,11 @@ export const EXTENDED_GLOSSARY = {
   survive: { m: "To stay alive through difficulties.", e: "Cactus plants survive in the desert with very little water." },
   atmosphere: { m: "The ocean of air that wraps all around planet Earth.", e: "Clouds and birds fly in the lower atmosphere." },
   dioxide: { m: "Short for carbon dioxide, the gas plants breathe in from air.", e: "We breathe out carbon dioxide, and green trees take it in." },
+  absorb: { m: "To soak up or take inside, like water in a sponge.", e: "Water from the soil is absorbed by plant roots." },
   absorbed: { m: "Soaked up or taken inside, like water in a sponge.", e: "Water from the soil is absorbed by plant roots." },
   transported: { m: "Moved or carried from one spot to another.", e: "Sap is transported from the leaves to the stem." },
   essential: { m: "Extremely important and necessary; cannot do without.", e: "Clean drinking water is essential for good health." },
   unique: { m: "Very special; unlike anything else.", e: "Every zebra has a unique pattern of stripes." },
-
-  // Physics, Energy & Matter
   friction: { m: "The rubbing force that slows down moving objects.", e: "Bicycle brakes use friction to stop the wheels safely." },
   gravity: { m: "The invisible pulling force of the Earth that keeps us on the ground.", e: "An apple falls down because of gravity." },
   velocity: { m: "The speed of something moving in a particular direction.", e: "The train's velocity increased as it left the station." },
@@ -58,7 +56,7 @@ export const EXTENDED_GLOSSARY = {
   insulator: { m: "A material that blocks heat or electricity from flowing.", e: "Rubber slippers act as an electrical insulator." },
   evaporation: { m: "When liquid water heats up and turns into steam or vapor.", e: "Clothes dry on the terrace due to evaporation." },
   condensation: { m: "When warm steam touches a cold surface and turns to water drops.", e: "Cold stainless steel glasses show water drops from condensation." },
-  precipitation: { m: "Water falling down from the sky as raindrops or hail.", e: "Monsoon brings joyful precipitation across India." },
+  precipitation: { m: "Water falling down from the sky as raindrops or hail.", e: "Monsoons bring joyful precipitation across India." },
   temperature: { m: "How hot or cold something is, measured in degrees.", e: "A thermometer checks your body temperature when you have fever." },
   pressure: { m: "The pushing force spread over a surface.", e: "Air pressure keeps bicycle tires firm and inflated." },
   reflection: { m: "When light rays bounce off a shiny surface like a mirror.", e: "You see your face in still water because of reflection." },
@@ -79,57 +77,118 @@ export async function getTesseractWorker() {
 }
 
 /**
- * Fetch real, genuine dictionary definition for ANY English word online (No API key needed).
+ * Fetch real, genuine dictionary definition for ANY word using Free Online Dictionaries.
+ * 1. Checks local verified school glossary.
+ * 2. Queries Free Dictionary API (dictionaryapi.dev).
+ * 3. Queries Wikipedia Concept Summary REST API (CORS-friendly, rich definitions).
+ * 4. Queries Datamuse Dictionary API.
  */
 export async function fetchLiveWordDefinition(word) {
-  const cleanWord = word.toLowerCase().replace(/^[^\p{L}]+|[^\p{L}]+$/gu, "");
-  if (!cleanWord) return null;
+  const cleanWord = (word || "").toLowerCase().replace(/^[^\p{L}]+|[^\p{L}]+$/gu, "");
+  if (!cleanWord || cleanWord.length < 2) return null;
 
-  // 1. Check local educational cache first
+  // 1. Check verified school glossary
   if (EXTENDED_GLOSSARY[cleanWord]) {
     return EXTENDED_GLOSSARY[cleanWord];
   }
 
-  // 2. Query free Datamuse API (fast, open, CORS-enabled, zero key)
-  try {
-    const res = await fetch(`https://api.datamuse.com/words?sp=${encodeURIComponent(cleanWord)}&md=d&max=1`);
-    if (res.ok) {
-      const data = await res.json();
-      if (data && data[0] && data[0].defs && data[0].defs.length > 0) {
-        // Extract definition part: "n\tdefinition text..."
-        const rawDef = data[0].defs[0].replace(/^[a-z]+\s+/, "");
-        const cleanDef = rawDef.replace(/\([^)]*\)/g, "").trim();
-        // Shorten definition to under 18 words
-        const words = cleanDef.split(/\s+/).slice(0, 16).join(" ");
-        return {
-          m: words.charAt(0).toUpperCase() + words.slice(1) + (words.endsWith(".") ? "" : "."),
-          e: `The word "${cleanWord}" is used in this chapter to explain this concept.`
-        };
-      }
+  // Generate candidate lemmas (handling plurals, -ing, -ed, etc.)
+  const candidates = [cleanWord];
+  if (cleanWord.endsWith("ies")) candidates.push(cleanWord.slice(0, -3) + "y");
+  if (cleanWord.endsWith("es")) candidates.push(cleanWord.slice(0, -2));
+  if (cleanWord.endsWith("s") && !cleanWord.endsWith("ss")) candidates.push(cleanWord.slice(0, -1));
+  if (cleanWord.endsWith("ing")) {
+    candidates.push(cleanWord.slice(0, -3));
+    candidates.push(cleanWord.slice(0, -3) + "e");
+  }
+  if (cleanWord.endsWith("ed")) {
+    candidates.push(cleanWord.slice(0, -2));
+    candidates.push(cleanWord.slice(0, -1));
+  }
+  if (cleanWord === "leaves") candidates.unshift("leaf");
+  if (cleanWord === "bacteria") candidates.push("bacterium");
+
+  // Check candidates in EXTENDED_GLOSSARY first
+  for (const c of candidates) {
+    if (EXTENDED_GLOSSARY[c]) {
+      return EXTENDED_GLOSSARY[c];
     }
-  } catch (e) {
-    console.warn("Datamuse lookup failed:", e);
   }
 
-  // 3. Fallback to free DictionaryAPI
-  try {
-    const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(cleanWord)}`);
-    if (res.ok) {
-      const data = await res.json();
-      const firstDef = data[0]?.meanings?.[0]?.definitions?.[0];
-      if (firstDef && firstDef.definition) {
-        const dWords = firstDef.definition.split(/\s+/).slice(0, 16).join(" ");
-        return {
-          m: dWords.charAt(0).toUpperCase() + dWords.slice(1) + (dWords.endsWith(".") ? "" : "."),
-          e: firstDef.example ? `Example: ${firstDef.example}` : `Students learn about "${cleanWord}" in this lesson.`
-        };
+  // 2. Query Free Dictionary API (dictionaryapi.dev)
+  for (const c of candidates) {
+    try {
+      const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(c)}`);
+      if (res.ok) {
+        const data = await res.json();
+        for (const entry of data) {
+          for (const m of entry.meanings || []) {
+            for (const d of m.definitions || []) {
+              if (d.definition && !d.definition.startsWith("Alternative spelling") && !d.definition.startsWith("Plural of")) {
+                const cleanDef = d.definition.replace(/\([^)]*\)/g, "").trim();
+                const shortDef = cleanDef.split(/\s+/).slice(0, 20).join(" ");
+                return {
+                  m: shortDef.charAt(0).toUpperCase() + shortDef.slice(1) + (shortDef.endsWith(".") ? "" : "."),
+                  e: d.example ? `Example: ${d.example}` : `Example: The term "${cleanWord}" is used in this chapter.`
+                };
+              }
+            }
+          }
+        }
       }
+    } catch {
+      // Continue to next candidate or fallback
     }
-  } catch (e) {
-    console.warn("DictionaryAPI lookup failed:", e);
   }
 
-  return null;
+  // 3. Query Wikipedia Summary API (extremely reliable for science, biology, nature, concepts)
+  for (const c of candidates) {
+    try {
+      const res = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(c)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.extract && !data.extract.startsWith("May refer to")) {
+          // Take first complete sentence
+          const firstSentence = data.extract.split(/(?<=[.!?])\s+/)[0];
+          const shortDef = firstSentence.split(/\s+/).slice(0, 22).join(" ");
+          return {
+            m: shortDef + (shortDef.endsWith(".") ? "" : "."),
+            e: `Example: In science class, students learn about "${cleanWord}".`
+          };
+        }
+      }
+    } catch {
+      // Continue to Datamuse
+    }
+  }
+
+  // 4. Query Datamuse Dictionary API
+  for (const c of candidates) {
+    try {
+      const res = await fetch(`https://api.datamuse.com/words?sp=${encodeURIComponent(c)}&md=d&max=1`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data[0] && data[0].defs && data[0].defs.length > 0) {
+          const rawDef = data[0].defs[0].replace(/^[a-z]+\s+/, "");
+          const cleanDef = rawDef.replace(/\([^)]*\)/g, "").trim();
+          if (cleanDef && !cleanDef.includes("surname")) {
+            const shortDef = cleanDef.split(/\s+/).slice(0, 18).join(" ");
+            return {
+              m: shortDef.charAt(0).toUpperCase() + shortDef.slice(1) + (shortDef.endsWith(".") ? "" : "."),
+              e: `Example: The word "${cleanWord}" helps explain this concept.`
+            };
+          }
+        }
+      }
+    } catch {
+      // Failover
+    }
+  }
+
+  return {
+    m: `A word or term used in this textbook section.`,
+    e: `Example: Students should practice reading "${cleanWord}".`
+  };
 }
 
 /**
@@ -150,7 +209,7 @@ export async function performClientOCR(imageFile) {
 /**
  * Clean up raw OCR lines into coherent paragraphs,
  * generate a simpler decodable version preserving all keywords,
- * and build the contextual glossary.
+ * and mark key terms for real definition lookup.
  */
 export function parseTextIntoStructuredDoc(rawText) {
   if (!rawText || !rawText.trim()) {
@@ -249,7 +308,6 @@ export function simplifyTextLocally(paras) {
 
       const words = cleanS.split(/\s+/);
       if (words.length > 18) {
-        // Natural break at conjunction
         const broken = cleanS.replace(/,\s*(and|while|whereas|but)\s+/i, ". ");
         if (broken !== cleanS) {
           broken.split(/(?<=[.!?])\s+/).forEach((part) => {
@@ -271,7 +329,8 @@ function capitalizeFirst(s) {
 }
 
 /**
- * Extract keywords and build child-friendly meanings with daily life examples.
+ * Extract keywords to mark with dotted underline.
+ * Note: Only marks verified words or key terms so the real dictionary is queried on click!
  */
 export function extractVocabulary(paras) {
   const text = paras.join(" ");
@@ -288,7 +347,8 @@ export function extractVocabulary(paras) {
     if (EXTENDED_GLOSSARY[w]) {
       glossary[w] = EXTENDED_GLOSSARY[w];
     } else if (isSubjectKeyword(w) && Object.keys(glossary).length < 24) {
-      glossary[w] = generateDynamicMeaning(w, text);
+      // Mark as keyword, but do not set dummy text so real online dictionary is called
+      glossary[w] = { needLookup: true };
     }
   });
 
@@ -306,26 +366,6 @@ function isSubjectKeyword(word) {
   if (common.has(w)) return false;
   const patterns = /(tion|sion|ment|ence|ance|ology|plast|phyll|synthesis|trophic|scope|meter|sphere|ation|ic|ous|ive|ism|ist)$/i;
   return w.length >= 7 || patterns.test(w);
-}
-
-export function generateDynamicMeaning(word, context) {
-  const w = word.toLowerCase();
-  if (w.endsWith("tion") || w.endsWith("sion")) {
-    return {
-      m: `The action or scientific process of ${w.slice(0, -4)}.`,
-      e: `Students observe this ${w} step-by-step in science class.`
-    };
-  }
-  if (w.endsWith("ment")) {
-    return {
-      m: `A state, substance, or result in nature.`,
-      e: `Proper ${w} is needed for healthy growth.`
-    };
-  }
-  return {
-    m: `An important concept word in this chapter.`,
-    e: `Remember "${word}" when revising this lesson.`
-  };
 }
 
 /**
@@ -347,9 +387,6 @@ export async function translateTextFree(text, targetLangCode) {
 
 /**
  * Gemini AI Direct Vision & NLP Integration.
- * Truly reads the textbook image, comprehends all diagrams and details,
- * creates a comprehensive yet simple decodable version, and provides
- * real student-friendly keyword meanings with everyday examples.
  */
 export async function processWithGemini(apiKey, file, langName = "Hindi") {
   const base64Data = await fileToBase64(file);

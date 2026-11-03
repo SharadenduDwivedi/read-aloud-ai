@@ -6,7 +6,6 @@ import {
   translateTextFree,
   processWithGemini,
   extractVocabulary,
-  generateDynamicMeaning,
   fetchLiveWordDefinition,
   EXTENDED_GLOSSARY
 } from "./aiService";
@@ -546,7 +545,7 @@ export default function App() {
     const below = rect.bottom + cardHeight + 12 < window.innerHeight;
     const top = below ? rect.bottom + 8 : Math.max(16, rect.top - cardHeight - 8);
 
-    if (item && mode !== "trans") {
+    if (item && item.m && !item.needLookup && mode !== "trans") {
       setCard({
         visible: true,
         word: raw,
@@ -564,7 +563,7 @@ export default function App() {
     setCard({
       visible: true,
       word: raw,
-      meaning: "Looking up meaning…",
+      meaning: "Looking up meaning in online dictionary…",
       example: "",
       x: left,
       y: top,
@@ -586,37 +585,15 @@ export default function App() {
           visible: true,
           word: raw,
           meaning: liveDef.m,
-          example: liveDef.e.startsWith("Example:") ? liveDef.e : "Example: " + liveDef.e,
-          x: left,
-          y: top,
-          pi,
-          wi
-        });
-      } else {
-        const dynamic = generateDynamicMeaning(raw, doc.paras.join(" "));
-        setCard({
-          visible: true,
-          word: raw,
-          meaning: dynamic.m,
-          example: dynamic.e.startsWith("Example:") ? dynamic.e : "Example: " + dynamic.e,
+          example: liveDef.e ? (liveDef.e.startsWith("Example:") ? liveDef.e : "Example: " + liveDef.e) : "",
           x: left,
           y: top,
           pi,
           wi
         });
       }
-    } catch {
-      const dynamic = generateDynamicMeaning(raw, doc.paras.join(" "));
-      setCard({
-        visible: true,
-        word: raw,
-        meaning: dynamic.m,
-        example: dynamic.e.startsWith("Example:") ? dynamic.e : "Example: " + dynamic.e,
-        x: left,
-        y: top,
-        pi,
-        wi
-      });
+    } catch (err) {
+      console.warn("Live dictionary lookup error:", err);
     }
   };
 
