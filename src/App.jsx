@@ -7,6 +7,7 @@ import {
   processWithGemini,
   extractVocabulary,
   fetchLiveWordDefinition,
+  findSentenceInContext,
   EXTENDED_GLOSSARY
 } from "./aiService";
 
@@ -545,12 +546,18 @@ export default function App() {
     const below = rect.bottom + cardHeight + 12 < window.innerHeight;
     const top = below ? rect.bottom + 8 : Math.max(16, rect.top - cardHeight - 8);
 
+    const contextSentence = findSentenceInContext(currentParas[pi] || "", raw);
+
     if (item && item.m && !item.needLookup && mode !== "trans") {
+      let ex = item.e || (contextSentence ? `In this text: "${contextSentence}"` : "");
+      if (ex && !ex.startsWith("Example:") && !ex.startsWith("In this text:")) {
+        ex = `Example: ${ex}`;
+      }
       setCard({
         visible: true,
         word: raw,
         meaning: item.m,
-        example: item.e ? (item.e.startsWith("Example:") ? item.e : "Example: " + item.e) : "",
+        example: ex,
         x: left,
         y: top,
         pi,
@@ -572,7 +579,7 @@ export default function App() {
     });
 
     try {
-      const liveDef = await fetchLiveWordDefinition(raw);
+      const liveDef = await fetchLiveWordDefinition(raw, contextSentence);
       if (liveDef) {
         setDoc((prev) => ({
           ...prev,
@@ -585,7 +592,7 @@ export default function App() {
           visible: true,
           word: raw,
           meaning: liveDef.m,
-          example: liveDef.e ? (liveDef.e.startsWith("Example:") ? liveDef.e : "Example: " + liveDef.e) : "",
+          example: liveDef.e || (contextSentence ? `In this text: "${contextSentence}"` : ""),
           x: left,
           y: top,
           pi,

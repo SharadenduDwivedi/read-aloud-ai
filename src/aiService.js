@@ -8,63 +8,66 @@ export const EXTENDED_GLOSSARY = {
   stomata: { m: "Tiny mouth-like pores under leaves for breathing in air.", e: "Stomata open to let carbon dioxide enter the leaf." },
   xylem: { m: "Tiny tubes inside plants that carry water up from roots.", e: "Water travels up tree trunks through xylem tubes." },
   phloem: { m: "Tiny tubes in plants that transport food from leaves to roots.", e: "Phloem distributes glucose to all parts of the plant." },
-  respiration: { m: "Taking in oxygen to release energy from food.", e: "We and all living things need respiration every second to stay alive." },
-  transpiration: { m: "When leaves let out extra water vapor into the air.", e: "Plants cool themselves down on hot afternoons through transpiration." },
+  respiration: { m: "Taking in oxygen to release energy from food.", e: "All living things need respiration every second to stay alive." },
+  transpiration: { m: "When leaves let out extra water vapor into the air to cool down.", e: "Plants cool themselves down on hot afternoons through transpiration." },
   circulation: { m: "The round trip of blood moving through your body.", e: "Your heartbeat pumps blood for circulation." },
-  digestion: { m: "Breaking down food into tiny pieces your body can absorb.", e: "Chewing your food properly makes digestion easy." },
-  germination: { m: "When a seed wakes up, sprouts, and grows into a baby plant.", e: "Moist black soil helps gram seed germination." },
-  pollination: { m: "Pollen moving from flower to flower so plants can produce seeds.", e: "Honeybees and butterflies help in pollination." },
-  fertilization: { m: "When male and female parts join to make a seed or baby.", e: "After fertilization, a mango flower turns into a fruit." },
-  reproduction: { m: "How living organisms produce babies or new plants of their kind.", e: "Birds laying eggs is an example of reproduction." },
-  adaptation: { m: "Special body features that help an animal survive in its home.", e: "A camel's hump is an adaptation for living in the dry desert." },
-  ecosystem: { m: "All plants, animals, and surroundings living and helping each other.", e: "A village pond is a mini ecosystem with fish, frogs, and lilies." },
-  habitat: { m: "The natural home or environment where an animal or plant lives.", e: "The forest is the natural habitat of wild elephants." },
+  digestion: { m: "Breaking down food into tiny nutrients your body can absorb.", e: "Chewing your food properly makes digestion easy." },
+  germination: { m: "When a seed sprouts and starts growing into a baby plant.", e: "Moist black soil helps seed germination." },
+  pollination: { m: "Pollen moving from flower to flower so plants make seeds.", e: "Honeybees and butterflies help in pollination." },
+  fertilization: { m: "When male and female cells join to make a seed or baby.", e: "After fertilization, a flower turns into a fruit." },
+  reproduction: { m: "How living organisms produce young ones of their kind.", e: "Birds laying eggs is an example of reproduction." },
+  adaptation: { m: "Special body features that help an animal live in its environment.", e: "A camel's hump is an adaptation for living in the dry desert." },
+  ecosystem: { m: "All plants, animals, and surroundings living and helping each other.", e: "A village pond is an ecosystem with fish, frogs, and lilies." },
+  habitat: { m: "The natural home or area where an animal or plant lives.", e: "The forest is the natural habitat of wild elephants." },
   herbivore: { m: "An animal that eats only grass, leaves, and plants.", e: "Cows, deer, and goats are herbivores." },
-  carnivore: { m: "An animal that eats meat and hunts other animals.", e: "Tigers, lions, and eagles are carnivores." },
-  omnivore: { m: "A creature that eats both plants and meat.", e: "Crows, bears, and human beings are omnivores." },
-  predator: { m: "An animal that hunts and eats other animals for food.", e: "The leopard is a stealthy predator." },
-  prey: { m: "An animal that is hunted and caught by a predator.", e: "Rabbits and deer are prey for wild cats." },
-  microorganism: { m: "A creature so tiny you can only see it through a microscope.", e: "Curd is formed by friendly microorganisms called lactobacillus." },
-  bacteria: { m: "Tiny single-celled living organisms found everywhere around us.", e: "Good bacteria in our stomach help us digest milk." },
-  nutrients: { m: "Nourishing parts of food needed for strength, growth, and health.", e: "Dal, rice, and fresh vegetables are full of healthy nutrients." },
-  carbohydrates: { m: "Energy-giving food substances found in rice, wheat, and potatoes.", e: "Eating rotis gives us carbohydrates to run and play." },
+  carnivore: { m: "An animal that hunts and eats meat.", e: "Tigers, lions, and eagles are carnivores." },
+  omnivore: { m: "A creature that eats both plants and meat.", e: "Crows, bears, and humans are omnivores." },
+  predator: { m: "An animal that hunts other animals for food.", e: "The leopard is a stealthy predator." },
+  prey: { m: "An animal that is hunted and eaten by a predator.", e: "Rabbits and deer are prey for wild cats." },
+  microorganism: { m: "A tiny living thing you can only see through a microscope.", e: "Curd is formed by friendly microorganisms called lactobacillus." },
+  bacteria: { m: "Tiny single-celled organisms found everywhere in nature.", e: "Good bacteria in our stomach help us digest food." },
+  nutrients: { m: "Nourishing parts of food needed for strength, growth, and health.", e: "Dal, milk, and vegetables are full of healthy nutrients." },
+  carbohydrates: { m: "Energy-giving food substances found in rice, wheat, and potatoes.", e: "Eating rotis gives us carbohydrates to run and study." },
   proteins: { m: "Body-building nutrients that help repair cuts and build muscles.", e: "Eggs, paneer, and lentils are rich in proteins." },
-  vitamins: { m: "Protective substances in fruits and veggies that stop illness.", e: "Oranges give us Vitamin C to fight colds." },
-  minerals: { m: "Natural body-building minerals like iron and calcium.", e: "Spinach has iron, a mineral that makes healthy red blood." },
+  vitamins: { m: "Protective substances in fruits and vegetables that stop illness.", e: "Oranges give us Vitamin C to fight colds." },
+  minerals: { m: "Natural inorganic substances like iron and calcium needed by the body.", e: "Spinach has iron, a mineral that makes healthy red blood." },
   glucose: { m: "A simple type of sugar that gives our cells fast energy.", e: "Drinking glucose water helps tired runners recover quickly." },
-  starch: { m: "Stored plant food found in potatoes, rice, and bread.", e: "Rice is rich in starch." },
-  deficiency: { m: "A sickness caused by a shortage of an important food nutrient.", e: "Not eating enough vitamins causes a deficiency." },
-  excretion: { m: "Throwing out toxic waste products from the body.", e: "Sweating and using the restroom are forms of excretion." },
-  skeleton: { m: "The hard frame of bones supporting your whole body.", e: "Your skull is part of your skeleton that shields your brain." },
+  starch: { m: "Stored plant food found in potatoes, rice, and bread.", e: "Boiled rice is full of starch." },
+  deficiency: { m: "A shortage or lack of an important food nutrient.", e: "Not eating enough vitamins causes a nutrient deficiency." },
+  excretion: { m: "Throwing out toxic waste products from the body.", e: "Sweating and urination are natural forms of excretion." },
+  skeleton: { m: "The framework of bones supporting your whole body.", e: "Your skull is part of your skeleton that shields your brain." },
   locomotion: { m: "The ability of an animal to move itself from place to place.", e: "Birds use wings for locomotion." },
   hemoglobin: { m: "The red substance inside blood that carries oxygen.", e: "Eating green leafy vegetables raises your hemoglobin levels." },
   organisms: { m: "Any living thing—plants, trees, insects, animals, or people.", e: "Fish, neem trees, and dogs are all living organisms." },
-  survive: { m: "To stay alive through difficulties.", e: "Cactus plants survive in the desert with very little water." },
-  atmosphere: { m: "The ocean of air that wraps all around planet Earth.", e: "Clouds and birds fly in the lower atmosphere." },
-  dioxide: { m: "Short for carbon dioxide, the gas plants breathe in from air.", e: "We breathe out carbon dioxide, and green trees take it in." },
-  absorb: { m: "To soak up or take inside, like water in a sponge.", e: "Water from the soil is absorbed by plant roots." },
+  organism: { m: "Any individual living thing, such as an animal, plant, or bacterium.", e: "An amoeba is a single-celled organism." },
+  survive: { m: "To stay alive through difficulties or harsh conditions.", e: "Cactus plants survive in the desert with very little water." },
+  atmosphere: { m: "The ocean of gases and air surrounding planet Earth.", e: "Clouds and birds fly in the lower atmosphere." },
+  dioxide: { m: "Short for carbon dioxide, the gas plants breathe in from the air.", e: "We breathe out carbon dioxide, and green trees take it in." },
+  absorb: { m: "To soak up or take inside, like a sponge takes in water.", e: "Water from the soil is absorbed by plant roots." },
   absorbed: { m: "Soaked up or taken inside, like water in a sponge.", e: "Water from the soil is absorbed by plant roots." },
-  transported: { m: "Moved or carried from one spot to another.", e: "Sap is transported from the leaves to the stem." },
+  absorbs: { m: "Soaks up or takes inside, like water in a sponge.", e: "The leaf absorbs sunlight to make food." },
+  transported: { m: "Carried or moved from one place to another.", e: "Sap is transported from the leaves to the rest of the plant." },
   essential: { m: "Extremely important and necessary; cannot do without.", e: "Clean drinking water is essential for good health." },
   unique: { m: "Very special; unlike anything else.", e: "Every zebra has a unique pattern of stripes." },
-  friction: { m: "The rubbing force that slows down moving objects.", e: "Bicycle brakes use friction to stop the wheels safely." },
-  gravity: { m: "The invisible pulling force of the Earth that keeps us on the ground.", e: "An apple falls down because of gravity." },
-  velocity: { m: "The speed of something moving in a particular direction.", e: "The train's velocity increased as it left the station." },
-  acceleration: { m: "How quickly something speeds up.", e: "Pressing the car pedal causes rapid acceleration." },
-  energy: { m: "The power or ability to do work and make things happen.", e: "Solar panels turn sunlight into electrical energy." },
+  friction: { m: "The rubbing force between two surfaces that slows down motion.", e: "Bicycle brakes use friction to stop the wheels safely." },
+  gravity: { m: "The invisible pulling force of the Earth that keeps us grounded.", e: "An apple falls down to the ground because of gravity." },
+  velocity: { m: "The speed of something moving in a specific direction.", e: "The train's velocity increased as it left the station." },
+  acceleration: { m: "How quickly something speeds up.", e: "Pressing the accelerator pedal causes rapid acceleration." },
+  energy: { m: "The power or capacity to do work and produce change.", e: "Solar panels turn sunlight into electrical energy." },
   conductor: { m: "A material that lets electricity or heat pass through easily.", e: "Copper wire is a great conductor of electric current." },
   insulator: { m: "A material that blocks heat or electricity from flowing.", e: "Rubber slippers act as an electrical insulator." },
   evaporation: { m: "When liquid water heats up and turns into steam or vapor.", e: "Clothes dry on the terrace due to evaporation." },
-  condensation: { m: "When warm steam touches a cold surface and turns to water drops.", e: "Cold stainless steel glasses show water drops from condensation." },
-  precipitation: { m: "Water falling down from the sky as raindrops or hail.", e: "Monsoons bring joyful precipitation across India." },
-  temperature: { m: "How hot or cold something is, measured in degrees.", e: "A thermometer checks your body temperature when you have fever." },
-  pressure: { m: "The pushing force spread over a surface.", e: "Air pressure keeps bicycle tires firm and inflated." },
+  condensation: { m: "When warm steam touches a cool surface and turns into water droplets.", e: "Cold stainless steel glasses show water drops from condensation." },
+  precipitation: { m: "Water falling down from the sky as raindrops, snow, or hail.", e: "Monsoons bring joyful precipitation across India." },
+  temperature: { m: "How hot or cold something is, measured in degrees Celsius.", e: "A thermometer checks your body temperature when you have fever." },
+  pressure: { m: "The pushing force applied over a specific surface area.", e: "Air pressure keeps bicycle tires firm and inflated." },
   reflection: { m: "When light rays bounce off a shiny surface like a mirror.", e: "You see your face in still water because of reflection." },
-  refraction: { m: "The bending of light as it moves from air into water or glass.", e: "A pencil placed in a glass of water looks bent due to refraction." },
+  refraction: { m: "The bending of light as it moves between air and water or glass.", e: "A pencil in a glass of water looks bent due to refraction." },
   transparent: { m: "Clear material that lets light pass through so you see clearly.", e: "Clean window glass is transparent." },
   translucent: { m: "Allows some light through, but you cannot see clearly through it.", e: "Butter paper is translucent." },
   opaque: { m: "Solid material that blocks all light and creates a dark shadow.", e: "A thick wooden door is completely opaque." },
-  magnet: { m: "A metal piece that pulls iron and steel objects towards itself.", e: "Fridge stickers use a small magnet to stick to the door." }
+  magnet: { m: "An object that produces a magnetic field and pulls iron towards it.", e: "Fridge stickers use a small magnet to stick to the door." },
+  increasingly: { m: "More and more over time; in an increasing manner.", e: "People are becoming increasingly aware of environmental protection." }
 };
 
 let tesseractWorker = null;
@@ -77,22 +80,67 @@ export async function getTesseractWorker() {
 }
 
 /**
- * Fetch real, genuine dictionary definition for ANY word using Free Online Dictionaries.
- * 1. Checks local verified school glossary.
- * 2. Queries Free Dictionary API (dictionaryapi.dev).
- * 3. Queries Wikipedia Concept Summary REST API (CORS-friendly, rich definitions).
- * 4. Queries Datamuse Dictionary API.
+ * Clean text from HTML tags, Wiki markup, brackets, and extra whitespace.
  */
-export async function fetchLiveWordDefinition(word) {
+function sanitizeDefinition(text) {
+  if (!text) return "";
+  let clean = text
+    .replace(/<[^>]+>/g, " ") // remove HTML
+    .replace(/\[\[(?:[^|\]]*\|)?([^\]]+)\]\]/g, "$1") // clean wiki links
+    .replace(/\([^)]*\)/g, " ") // remove parentheticals like (transitive)
+    .replace(/\{[^}]*\}/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  
+  // Strip common noisy dictionary lead-ins
+  clean = clean
+    .replace(/^(plural of|alternative form of|comparative form of|superlative form of|past of|third-person singular of)\s+[a-z]+[.,;]?\s*/gi, "")
+    .trim();
+
+  // Limit to 20 words for child reading ease
+  const words = clean.split(/\s+/).slice(0, 20);
+  let res = words.join(" ");
+  if (res && !/[.!?]$/.test(res)) res += ".";
+  return res.charAt(0).toUpperCase() + res.slice(1);
+}
+
+/**
+ * Extracts the exact sentence from the textbook paragraph where the word was tapped.
+ */
+export function findSentenceInContext(paragraph, word) {
+  if (!paragraph || !word) return "";
+  const cleanW = word.toLowerCase().replace(/^[^\p{L}]+|[^\p{L}]+$/gu, "");
+  const sentences = paragraph.split(/(?<=[.!?])\s+/);
+  for (const s of sentences) {
+    const tokens = s.toLowerCase().match(/\b\p{L}+\b/gu) || [];
+    if (tokens.includes(cleanW)) {
+      return s.trim();
+    }
+  }
+  return (sentences[0] || paragraph).trim();
+}
+
+/**
+ * Fetch a genuine, verified dictionary definition and real usage example
+ * using reliable, CORS-enabled Free Online Dictionaries:
+ * 1. Checks verified curriculum glossary first.
+ * 2. Free Dictionary API (dictionaryapi.dev)
+ * 3. Wiktionary REST API (en.wiktionary.org/api/rest_v1/page/definition)
+ * 4. Datamuse Dictionary API
+ * 
+ * Never queries Wikipedia pages (prevents random band/album/article redirects).
+ * If no example exists in the dictionary, uses the real sentence from the user's textbook!
+ */
+export async function fetchLiveWordDefinition(word, contextSentence = "") {
   const cleanWord = (word || "").toLowerCase().replace(/^[^\p{L}]+|[^\p{L}]+$/gu, "");
   if (!cleanWord || cleanWord.length < 2) return null;
 
-  // 1. Check verified school glossary
+  // 1. Check local curriculum glossary
   if (EXTENDED_GLOSSARY[cleanWord]) {
     return EXTENDED_GLOSSARY[cleanWord];
   }
 
-  // Generate candidate lemmas (handling plurals, -ing, -ed, etc.)
+  // Generate candidate forms (lemmas) for plural, -ing, -ed, etc.
   const candidates = [cleanWord];
   if (cleanWord.endsWith("ies")) candidates.push(cleanWord.slice(0, -3) + "y");
   if (cleanWord.endsWith("es")) candidates.push(cleanWord.slice(0, -2));
@@ -108,7 +156,7 @@ export async function fetchLiveWordDefinition(word) {
   if (cleanWord === "leaves") candidates.unshift("leaf");
   if (cleanWord === "bacteria") candidates.push("bacterium");
 
-  // Check candidates in EXTENDED_GLOSSARY first
+  // Check candidates in EXTENDED_GLOSSARY
   for (const c of candidates) {
     if (EXTENDED_GLOSSARY[c]) {
       return EXTENDED_GLOSSARY[c];
@@ -125,40 +173,52 @@ export async function fetchLiveWordDefinition(word) {
           for (const m of entry.meanings || []) {
             for (const d of m.definitions || []) {
               if (d.definition && !d.definition.startsWith("Alternative spelling") && !d.definition.startsWith("Plural of")) {
-                const cleanDef = d.definition.replace(/\([^)]*\)/g, "").trim();
-                const shortDef = cleanDef.split(/\s+/).slice(0, 20).join(" ");
-                return {
-                  m: shortDef.charAt(0).toUpperCase() + shortDef.slice(1) + (shortDef.endsWith(".") ? "" : "."),
-                  e: d.example ? `Example: ${d.example}` : `Example: The term "${cleanWord}" is used in this chapter.`
-                };
+                const defText = sanitizeDefinition(d.definition);
+                if (defText && defText.length > 5) {
+                  let exText = "";
+                  if (d.example) {
+                    exText = `Example: ${d.example}`;
+                  } else if (contextSentence) {
+                    exText = `In this text: "${contextSentence}"`;
+                  }
+                  return { m: defText, e: exText };
+                }
               }
             }
           }
         }
       }
     } catch {
-      // Continue to next candidate or fallback
+      // Continue to next candidate
     }
   }
 
-  // 3. Query Wikipedia Summary API (extremely reliable for science, biology, nature, concepts)
+  // 3. Query Wiktionary REST API (Wiktionary is a dedicated dictionary, NOT Wikipedia)
   for (const c of candidates) {
     try {
-      const res = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(c)}`);
+      const res = await fetch(`https://en.wiktionary.org/api/rest_v1/page/definition/${encodeURIComponent(c)}`);
       if (res.ok) {
         const data = await res.json();
-        if (data.extract && !data.extract.startsWith("May refer to")) {
-          // Take first complete sentence
-          const firstSentence = data.extract.split(/(?<=[.!?])\s+/)[0];
-          const shortDef = firstSentence.split(/\s+/).slice(0, 22).join(" ");
-          return {
-            m: shortDef + (shortDef.endsWith(".") ? "" : "."),
-            e: `Example: In science class, students learn about "${cleanWord}".`
-          };
+        for (const langItem of data.en || []) {
+          for (const d of langItem.definitions || []) {
+            const rawDef = d.definition || "";
+            const defText = sanitizeDefinition(rawDef);
+            if (defText && defText.length > 5 && !defText.toLowerCase().includes("surname")) {
+              let exText = "";
+              if (d.examples && d.examples.length > 0) {
+                const cleanEx = sanitizeDefinition(d.examples[0]);
+                if (cleanEx) exText = `Example: ${cleanEx}`;
+              }
+              if (!exText && contextSentence) {
+                exText = `In this text: "${contextSentence}"`;
+              }
+              return { m: defText, e: exText };
+            }
+          }
         }
       }
     } catch {
-      // Continue to Datamuse
+      // Continue
     }
   }
 
@@ -170,24 +230,22 @@ export async function fetchLiveWordDefinition(word) {
         const data = await res.json();
         if (data && data[0] && data[0].defs && data[0].defs.length > 0) {
           const rawDef = data[0].defs[0].replace(/^[a-z]+\s+/, "");
-          const cleanDef = rawDef.replace(/\([^)]*\)/g, "").trim();
-          if (cleanDef && !cleanDef.includes("surname")) {
-            const shortDef = cleanDef.split(/\s+/).slice(0, 18).join(" ");
-            return {
-              m: shortDef.charAt(0).toUpperCase() + shortDef.slice(1) + (shortDef.endsWith(".") ? "" : "."),
-              e: `Example: The word "${cleanWord}" helps explain this concept.`
-            };
+          const defText = sanitizeDefinition(rawDef);
+          if (defText && defText.length > 5 && !defText.toLowerCase().includes("surname")) {
+            const exText = contextSentence ? `In this text: "${contextSentence}"` : "";
+            return { m: defText, e: exText };
           }
         }
       }
     } catch {
-      // Failover
+      // Fallback
     }
   }
 
+  // 5. Context-based clean fallback
   return {
-    m: `A word or term used in this textbook section.`,
-    e: `Example: Students should practice reading "${cleanWord}".`
+    m: `An important vocabulary word used in this lesson.`,
+    e: contextSentence ? `In this text: "${contextSentence}"` : ""
   };
 }
 
@@ -330,7 +388,6 @@ function capitalizeFirst(s) {
 
 /**
  * Extract keywords to mark with dotted underline.
- * Note: Only marks verified words or key terms so the real dictionary is queried on click!
  */
 export function extractVocabulary(paras) {
   const text = paras.join(" ");
@@ -347,7 +404,6 @@ export function extractVocabulary(paras) {
     if (EXTENDED_GLOSSARY[w]) {
       glossary[w] = EXTENDED_GLOSSARY[w];
     } else if (isSubjectKeyword(w) && Object.keys(glossary).length < 24) {
-      // Mark as keyword, but do not set dummy text so real online dictionary is called
       glossary[w] = { needLookup: true };
     }
   });
@@ -405,7 +461,7 @@ Analyze this photo of a textbook page thoroughly:
 5. "hard": Identify 8-15 key scientific or vocabulary words found on this page. For EACH keyword, provide:
    - "word": the exact keyword.
    - "meaning": a clear, simple meaning in plain English (max 15 simple words).
-   - "example": a short, relatable everyday example sentence from Indian daily life.
+   - "example": a real-world, natural example sentence showing how the word is used in context.
 
 Return ONLY a valid JSON object matching this schema:
 {
@@ -414,7 +470,7 @@ Return ONLY a valid JSON object matching this schema:
   "simple": ["comprehensive simple para 1", "comprehensive simple para 2"],
   "trans": ["${langName} para 1", "${langName} para 2"],
   "hard": [
-    { "word": "keyword", "meaning": "plain meaning", "example": "relatable Indian daily life example" }
+    { "word": "keyword", "meaning": "plain meaning", "example": "real-world example sentence" }
   ]
 }`;
 
