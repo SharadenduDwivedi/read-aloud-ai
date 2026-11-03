@@ -6,6 +6,7 @@ import {
   translateTextFree,
   processWithGemini,
   extractVocabulary,
+  generateDynamicMeaning,
   EXTENDED_GLOSSARY
 } from "./aiService";
 
@@ -512,10 +513,11 @@ export default function App() {
       }
 
       setDoc(parsedDoc);
-      setMode("orig");
-      setSteps({ s1: "done", s2: "done", s3: null, s4: null });
-      setSrcNote(`Read ${parsedDoc.paras.length} paragraph${parsedDoc.paras.length > 1 ? "s" : ""} from your uploaded photo.`);
-      setStatusText("Page ready! Press play to listen, or tap any dotted word.");
+      // Immediately present the simpler decodable version containing all keywords
+      setMode("simple");
+      setSteps({ s1: "done", s2: "done", s3: "done", s4: null });
+      setSrcNote(`Read & simplified ${parsedDoc.paras.length} paragraph${parsedDoc.paras.length > 1 ? "s" : ""} from your photo.`);
+      setStatusText("Simplified page ready with key terms! Press play to listen, or tap any dotted keyword.");
     } catch (err) {
       console.error("Photo OCR processing error:", err);
       setSteps({ s1: "done", s2: null, s3: null, s4: null });
@@ -555,16 +557,17 @@ export default function App() {
         wi
       });
     } else {
-      // Dynamic vocabulary lookup
-      const generatedMeaning = `A key term used in this lesson. Tap 'Hear word' for clear pronunciation.`;
-      const generatedExample = `Example: Students learn about "${raw}" in this section.`;
+      // Dynamic student-friendly vocabulary lookup
+      const dynamic = generateDynamicMeaning(raw, doc.paras.join(" "));
+      const generatedMeaning = dynamic.m;
+      const generatedExample = dynamic.e.startsWith("Example:") ? dynamic.e : "Example: " + dynamic.e;
 
       // Cache it so it shows with dotted underline
       setDoc((prev) => ({
         ...prev,
         glossary: {
           ...(prev.glossary || {}),
-          [key]: { m: generatedMeaning, e: generatedExample }
+          [key]: { m: generatedMeaning, e: dynamic.e }
         }
       }));
 
@@ -993,7 +996,7 @@ export default function App() {
             </div>
 
             <span className="spacer" />
-            <span className="note">Dotted words are hard words · tap to explain</span>
+            <span className="note">Dotted words are keywords · tap for easy meaning &amp; example</span>
           </div>
         </section>
       </div>
@@ -1005,17 +1008,24 @@ export default function App() {
           className="card"
           id="card"
           role="dialog"
-          aria-label="Word meaning"
-          style={{ left: `${card.x}px`, top: `${card.y}px` }}
+          aria-label="Keyword meaning and example"
+          style={{ left: `${card.x}px`, top: `${card.y}px`, minWidth: "260px" }}
         >
-          <h3 id="cWord">{card.word}</h3>
-          <p id="cMeaning">{card.meaning}</p>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" }}>
+            <h3 id="cWord" style={{ color: "var(--accent)" }}>{card.word}</h3>
+            <span style={{ fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--muted)", background: "var(--accent-soft)", padding: "2px 8px", borderRadius: "999px" }}>
+              Key Term
+            </span>
+          </div>
+          <p id="cMeaning" style={{ fontWeight: 500, lineHeight: 1.45, fontSize: "14px" }}>
+            {card.meaning}
+          </p>
           {card.example && (
-            <p className="ex" id="cEx">
+            <p className="ex" id="cEx" style={{ fontStyle: "italic", borderLeft: "3px solid var(--accent)", paddingLeft: "8px", margin: "2px 0 6px" }}>
               {card.example}
             </p>
           )}
-          <div className="row">
+          <div className="row" style={{ marginTop: "4px" }}>
             <button className="btn" id="cHear" type="button" onClick={handleHearWord}>
               🔊 Hear word
             </button>
