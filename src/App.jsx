@@ -5,6 +5,7 @@ import {
   processImageWithAI,
   simplifyTextLocally,
   simplifyTextWithAI,
+  translateTextWithAI,
   translateTextFree,
   processWithGemini,
   extractVocabulary,
@@ -388,12 +389,8 @@ export default function App() {
               trans: { ...(prev.trans || {}), [langName]: translation }
             }));
           } else {
-            // Translate custom extracted text
-            const translatedParas = [];
-            for (const p of doc.paras) {
-              const tr = await translateTextFree(p, langCode);
-              translatedParas.push(tr);
-            }
+            // Translate with AI
+            const translatedParas = await translateTextWithAI(doc.paras, langName, langCode, { provider: aiProvider, apiKey });
             setDoc((prev) => ({
               ...prev,
               trans: { ...(prev.trans || {}), [langName]: translatedParas }
@@ -429,7 +426,7 @@ export default function App() {
       if (!doc.trans || !doc.trans[newName]) {
         setSteps((s) => ({ ...s, s3: "on" }));
         setIsBusy(true);
-        setStatusText(`Translating into ${newName}…`);
+        setStatusText(`Translating into ${newName} with AI…`);
         try {
           if (SAMPLE.trans && SAMPLE.trans[newName] && doc.title === SAMPLE.title) {
             const translation = SAMPLE.trans[newName];
@@ -438,11 +435,7 @@ export default function App() {
               trans: { ...(prev.trans || {}), [newName]: translation }
             }));
           } else {
-            const translatedParas = [];
-            for (const p of doc.paras) {
-              const tr = await translateTextFree(p, newCode);
-              translatedParas.push(tr);
-            }
+            const translatedParas = await translateTextWithAI(doc.paras, newName, newCode, { provider: aiProvider, apiKey });
             setDoc((prev) => ({
               ...prev,
               trans: { ...(prev.trans || {}), [newName]: translatedParas }

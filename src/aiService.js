@@ -483,15 +483,16 @@ export async function simplifyTextWithAI(paras, { provider, apiKey }) {
     return simplifyTextLocally(paras);
   }
 
-  const prompt = `You are an expert educator rewriting textbook paragraphs for a 12-year-old student with dyslexia.
+  const prompt = `You are an expert inclusive educator rewriting textbook paragraphs into very easy, simple English for a middle school student with dyslexia or learning differences.
 Rules:
-1. Make sentences short (max 10-12 words).
-2. Use active, clear, decodable words.
-3. Keep ALL subject keywords, scientific terms, and factual details completely intact.
-4. Return ONLY a valid JSON object matching this schema:
+1. Simplify every sentence using very easy, everyday words that any 10-12 year old child can easily understand and read.
+2. Make sentences short and punchy (max 10 to 12 words per sentence).
+3. If there are difficult ideas, explain them simply and clearly in gentle, plain English.
+4. Keep all essential subject keywords, scientific terms, and core facts intact, but make all the surrounding explanation simple and easy to understand.
+5. Return ONLY a valid JSON object matching this schema:
 {"paras": ["simplified paragraph 1", "simplified paragraph 2"]}
 
-Paragraphs to rewrite:
+Paragraphs to rewrite in easy words:
 ${JSON.stringify(paras)}`;
 
   try {
@@ -617,6 +618,153 @@ function isSubjectKeyword(word) {
   if (common.has(w)) return false;
   const patterns = /(tion|sion|ment|ence|ance|ology|plast|phyll|synthesis|trophic|scope|meter|sphere|ation|ic|ous|ive|ism|ist)$/i;
   return w.length >= 7 || patterns.test(w);
+}
+
+/**
+ * Universal AI Translation Engine:
+ * Translates paragraphs into Indian regional languages using:
+ * 1. Secure Vercel Serverless /api/translate (server-side Groq Llama 3.3).
+ * 2. Client-side Groq (Llama 3.3 70B), Gemini, OpenRouter, or local Ollama.
+ * 3. Fallback to free regional translation proxy.
+ */
+export async function translateTextWithAI(paras, targetLangName = "Hindi", targetLangCode = "hi-IN", { provider = "groq", apiKey = "" } = {}) {
+  if (!paras || paras.length === 0) return [];
+
+  // 0. Try secure Vercel Serverless proxy first (server-side GROQ_API_KEY)
+  try {
+    const serverRes = await fetch("/api/translate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ paras, targetLangName, targetLangCode })
+    });
+    if (serverRes.ok) {
+      const data = await serverRes.json();
+      if (data && data.paras && Array.isArray(data.paras) && data.paras.length > 0) {
+        return data.paras;
+      }
+    }
+  } catch {
+    // Continue to client-side provider or fallback
+  }
+
+  const prompt = `You are an expert bilingual educator and translator for school students.
+Translate the following educational paragraphs into clear, natural, everyday ${targetLangName} (Indian regional language) that a middle-school student can easily read and understand.
+Rules:
+1. Translate every paragraph faithfully using clear, natural everyday phrasing.
+2. Use words that Indian school students speak and understand easily.
+3. Keep the paragraph order and count identical.
+4. Return ONLY a valid JSON object matching this schema:
+{"paras": ["translated paragraph 1 in ${targetLangName}", "translated paragraph 2 in ${targetLangName}"]}
+
+Paragraphs to translate:
+${JSON.stringify(paras)}`;
+
+  // 1. Client-side Groq API
+  if (provider === "groq" && apiKey) {
+    try {
+      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey.trim()}`
+        },
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          messages: [{ role: "user", content: prompt }],
+          response_format: { type: "json_object" },
+          temperature: 0.3
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const parsed = JSON.parse(data.choices[0].message.content);
+        if (parsed.paras && Array.isArray(parsed.paras)) return parsed.paras;
+      }
+    } catch (e) {
+      console.warn("Client Groq translation failed:", e);
+    }
+  }
+
+  // 2. Client-side Google Gemini
+  if (provider === "gemini" && apiKey) {
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey.trim()}`;
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { response_mime_type: "application/json" }
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const parsed = JSON.parse(data.candidates[0].content.parts[0].text);
+        if (parsed.paras && Array.isArray(parsed.paras)) return parsed.paras;
+      }
+    } catch (e) {
+      console.warn("Client Gemini translation failed:", e);
+    }
+  }
+
+  // 3. Client-side OpenRouter
+  if (provider === "openrouter" && apiKey) {
+    try {
+      const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey.trim()}`,
+          "HTTP-Referer": window.location.origin,
+          "X-Title": "ReadAloud AI"
+        },
+        body: JSON.stringify({
+          model: "meta-llama/llama-3.3-70b-instruct",
+          messages: [{ role: "user", content: prompt + "\nRespond with JSON only." }],
+          temperature: 0.3
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const text = data.choices[0].message.content.replace(/```json|```/g, "").trim();
+        const parsed = JSON.parse(text);
+        if (parsed.paras && Array.isArray(parsed.paras)) return parsed.paras;
+      }
+    } catch (e) {
+      console.warn("Client OpenRouter translation failed:", e);
+    }
+  }
+
+  // 4. Local Ollama
+  if (provider === "ollama") {
+    try {
+      const res = await fetch("http://localhost:11434/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "llama3.2",
+          prompt: prompt + "\nRespond with JSON only.",
+          format: "json",
+          stream: false
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const parsed = JSON.parse(data.response);
+        if (parsed.paras && Array.isArray(parsed.paras)) return parsed.paras;
+      }
+    } catch (e) {
+      console.warn("Local Ollama translation failed:", e);
+    }
+  }
+
+  // 5. Fallback: Free translation proxy
+  const translated = [];
+  for (const p of paras) {
+    const tr = await translateTextFree(p, targetLangCode);
+    translated.push(tr);
+  }
+  return translated;
 }
 
 /**

@@ -18,15 +18,16 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Invalid or empty paragraphs array." });
     }
 
-    const prompt = `You are an expert inclusive educator rewriting textbook paragraphs for a 12-year-old student with dyslexia.
+    const prompt = `You are an expert inclusive educator rewriting textbook paragraphs into very easy, simple English for a middle school student with dyslexia or learning differences.
 Rules:
-1. Make sentences short (max 10-12 words).
-2. Use active, clear, decodable words.
-3. Keep ALL subject keywords, scientific terms, and factual details completely intact.
-4. Return ONLY a valid JSON object matching this schema:
+1. Simplify every sentence using very easy, everyday words that any 10-12 year old child can easily understand and read.
+2. Make sentences short and punchy (max 10 to 12 words per sentence).
+3. If there are difficult ideas, explain them simply and clearly in gentle, plain English.
+4. Keep all essential subject keywords, scientific terms, and core facts intact, but make all the surrounding explanation simple and easy to understand.
+5. Return ONLY a valid JSON object matching this schema:
 {"paras": ["simplified paragraph 1", "simplified paragraph 2"]}
 
-Paragraphs to rewrite:
+Paragraphs to rewrite in easy words:
 ${JSON.stringify(paras)}`;
 
     // Call Groq Llama 3.3 from server
@@ -61,4 +62,3 @@ ${JSON.stringify(paras)}`;
     });
   }
 }
-
