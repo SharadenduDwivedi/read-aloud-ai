@@ -1,5 +1,13 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { SAMPLE, LANGUAGES } from "./sampleData";
+import {
+  performClientOCR,
+  simplifyTextLocally,
+  translateTextFree,
+  processWithGemini,
+  extractVocabulary,
+  EXTENDED_GLOSSARY
+} from "./aiService";
 
 const DEVANAGARI = ["hi", "mr", "ne", "sa", "kok"];
 
@@ -15,6 +23,11 @@ export default function App() {
   const [isBusy, setIsBusy] = useState(false);
   const [srcNote, setSrcNote] = useState("Sample page loaded: Class 7 Science.");
   const [thumbUrl, setThumbUrl] = useState(null);
+
+  // Settings & API Configuration
+  const [showSettings, setShowSettings] = useState(false);
+  const [apiKey, setApiKey] = useState(() => localStorage.getItem("readaloud_gemini_key") || "");
+  const [tempApiKey, setTempApiKey] = useState(apiKey);
 
   // Pipeline steps
   const [steps, setSteps] = useState({ s1: null, s2: null, s3: null, s4: null });
@@ -252,7 +265,6 @@ export default function App() {
     if (!synth) return;
 
     if (chunkIdxRef.current >= chunksRef.current.length) {
-      // Finished reading
       stopAudio(true);
       setSteps((s) => ({ ...s, s4: "done" }));
       setStatusText("Finished the page. Tap any word to revise it.");
@@ -351,27 +363,37 @@ export default function App() {
       setIsBusy(true);
       setStatusText(newMode === "simple" ? "Rewriting in simpler English…" : `Translating into ${langName}…`);
 
-      // Gentle simulation / local smart adaptation if custom text
-      await new Promise((r) => setTimeout(r, 600));
-
-      if (newMode === "simple") {
-        const simplified = doc.paras.map((p) =>
-          p
-            .replace(/All living organisms need food to survive\./i, "Every living thing needs food.")
-            .replace(/prepare their own food through a process called photosynthesis/i, "make their own food. This is called photosynthesis")
-            .replace(/contains? a green pigment called chlorophyll/i, "has a green colour called chlorophyll")
-        );
-        setDoc((prev) => ({ ...prev, simple: simplified }));
-      } else {
-        const translation = (SAMPLE.trans && SAMPLE.trans[langName]) || doc.paras;
-        setDoc((prev) => ({
-          ...prev,
-          trans: { ...(prev.trans || {}), [langName]: translation }
-        }));
+      try {
+        if (newMode === "simple") {
+          const simplified = simplifyTextLocally(doc.paras);
+          setDoc((prev) => ({ ...prev, simple: simplified }));
+        } else {
+          // If translation already cached in sample
+          if (SAMPLE.trans && SAMPLE.trans[langName] && doc.title === SAMPLE.title) {
+            const translation = SAMPLE.trans[langName];
+            setDoc((prev) => ({
+              ...prev,
+              trans: { ...(prev.trans || {}), [langName]: translation }
+            }));
+          } else {
+            // Translate custom extracted text
+            const translatedParas = [];
+            for (const p of doc.paras) {
+              const tr = await translateTextFree(p, langCode);
+              translatedParas.push(tr);
+            }
+            setDoc((prev) => ({
+              ...prev,
+              trans: { ...(prev.trans || {}), [langName]: translatedParas }
+            }));
+          }
+        }
+        setSteps((s) => ({ ...s, s3: "done" }));
+      } catch (err) {
+        console.error("Simplification / Translation error:", err);
+      } finally {
+        setIsBusy(false);
       }
-
-      setSteps((s) => ({ ...s, s3: "done" }));
-      setIsBusy(false);
     }
 
     setMode(newMode);
@@ -385,10 +407,10 @@ export default function App() {
   };
 
   // Language selection change
-  const handleLangChange = (e) => {
+  const handleLangChange = async (e) => {
     const val = e.target.value;
     setLangVal(val);
-    const newName = val.split("|")[1];
+    const [newCode, newName] = val.split("|");
 
     if (mode === "trans") {
       stopAudio(true);
@@ -396,16 +418,31 @@ export default function App() {
         setSteps((s) => ({ ...s, s3: "on" }));
         setIsBusy(true);
         setStatusText(`Translating into ${newName}…`);
-        setTimeout(() => {
-          const translation = (SAMPLE.trans && SAMPLE.trans[newName]) || doc.paras;
-          setDoc((prev) => ({
-            ...prev,
-            trans: { ...(prev.trans || {}), [newName]: translation }
-          }));
+        try {
+          if (SAMPLE.trans && SAMPLE.trans[newName] && doc.title === SAMPLE.title) {
+            const translation = SAMPLE.trans[newName];
+            setDoc((prev) => ({
+              ...prev,
+              trans: { ...(prev.trans || {}), [newName]: translation }
+            }));
+          } else {
+            const translatedParas = [];
+            for (const p of doc.paras) {
+              const tr = await translateTextFree(p, newCode);
+              translatedParas.push(tr);
+            }
+            setDoc((prev) => ({
+              ...prev,
+              trans: { ...(prev.trans || {}), [newName]: translatedParas }
+            }));
+          }
           setSteps((s) => ({ ...s, s3: "done" }));
+        } catch (err) {
+          console.error("Translation change error:", err);
+        } finally {
           setIsBusy(false);
           setStatusText(`Showing ${newName}.`);
-        }, 500);
+        }
       } else {
         setStatusText(`Showing ${newName}.`);
       }
@@ -434,10 +471,12 @@ export default function App() {
       .map((s) => s.trim())
       .filter(Boolean);
 
+    const glossary = extractVocabulary(paras);
+
     setDoc({
-      title: "Your text",
+      title: "Pasted Text Excerpt",
       paras,
-      glossary: {}
+      glossary
     });
     setMode("orig");
     setSteps({ s1: null, s2: null, s3: null, s4: null });
@@ -446,8 +485,8 @@ export default function App() {
     setShowPaste(false);
   };
 
-  // Photo upload
-  const handlePhotoUpload = (e) => {
+  // Photo upload with Real Client-Side OCR & optional Gemini AI Vision
+  const handlePhotoUpload = async (e) => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
 
@@ -457,33 +496,34 @@ export default function App() {
 
     setSteps({ s1: "done", s2: "on", s3: null, s4: null });
     setIsBusy(true);
-    setStatusText("Reading the text on your photo…");
+    setStatusText("Reading the text on your photo (running OCR)...");
 
-    // Simulate high-fidelity textbook OCR
-    setTimeout(() => {
-      setDoc({
-        title: "Textbook Chapter: Nutrition in Plants",
-        paras: [
-          "Nutrients enable living organisms to build their bodies, to grow, to repair damaged parts of their bodies and provide the energy to carry out life processes.",
-          "Nutrition is the mode of taking food by an organism and its utilisation by the body. The mode of nutrition in which organisms make food themselves from simple substances is called autotrophic nutrition.",
-          "Leaves are the food factories of plants. Therefore, all the raw materials must reach the leaf. Water and minerals present in the soil are absorbed by the roots and transported to the leaves."
-        ],
-        glossary: {
-          nutrients: { m: "Components of food needed by our body.", e: "Proteins and vitamins are nutrients." },
-          organisms: { m: "Living things like animals and plants.", e: "Fish and birds are organisms." },
-          autotrophic: { m: "Making food by oneself.", e: "Green plants have autotrophic nutrition." },
-          minerals: { m: "Substances found in soil needed for health.", e: "Iron and calcium are minerals." },
-          transported: { m: "Moved from one place to another.", e: "Water is transported to the leaves." }
-        }
-      });
+    try {
+      let parsedDoc;
+
+      // If user supplied a Gemini API key, use multimodal vision
+      if (apiKey.trim()) {
+        setStatusText("Analyzing image with Gemini Vision AI…");
+        parsedDoc = await processWithGemini(apiKey.trim(), file, langName);
+      } else {
+        // Zero-setup: Client-side In-Browser Tesseract.js OCR
+        setStatusText("Extracting textbook text directly in your browser…");
+        parsedDoc = await performClientOCR(file);
+      }
+
+      setDoc(parsedDoc);
       setMode("orig");
       setSteps({ s1: "done", s2: "done", s3: null, s4: null });
+      setSrcNote(`Read ${parsedDoc.paras.length} paragraph${parsedDoc.paras.length > 1 ? "s" : ""} from your uploaded photo.`);
+      setStatusText("Page ready! Press play to listen, or tap any dotted word.");
+    } catch (err) {
+      console.error("Photo OCR processing error:", err);
+      setSteps({ s1: "done", s2: null, s3: null, s4: null });
+      setStatusText(`Could not read photo: ${err.message || "Please try a clearer image with good lighting."}`);
+    } finally {
       setIsBusy(false);
-      setSrcNote("Read 3 paragraphs from your photo.");
-      setStatusText("Page ready. Press play, or tap a dotted word.");
-    }, 1200);
-
-    e.target.value = "";
+      e.target.value = "";
+    }
   };
 
   // Open word card
@@ -493,7 +533,7 @@ export default function App() {
 
     const key = clean(raw);
     const gl = doc.glossary || {};
-    const item = gl[key];
+    const item = gl[key] || EXTENDED_GLOSSARY[key];
 
     const rect = e.currentTarget.getBoundingClientRect();
     const cardWidth = 320;
@@ -515,12 +555,24 @@ export default function App() {
         wi
       });
     } else {
-      // Dynamic fallback definition
+      // Dynamic vocabulary lookup
+      const generatedMeaning = `A key term used in this lesson. Tap 'Hear word' for clear pronunciation.`;
+      const generatedExample = `Example: Students learn about "${raw}" in this section.`;
+
+      // Cache it so it shows with dotted underline
+      setDoc((prev) => ({
+        ...prev,
+        glossary: {
+          ...(prev.glossary || {}),
+          [key]: { m: generatedMeaning, e: generatedExample }
+        }
+      }));
+
       setCard({
         visible: true,
         word: raw,
-        meaning: `A vocabulary term used in this context. Tap to hear pronunciation.`,
-        example: `Example: Students learn about "${raw}" in science class.`,
+        meaning: generatedMeaning,
+        example: generatedExample,
         x: left,
         y: top,
         pi,
@@ -546,11 +598,21 @@ export default function App() {
     synth.speak(u);
   };
 
+  // Save Settings Modal
+  const handleSaveSettings = () => {
+    const trimmed = tempApiKey.trim();
+    setApiKey(trimmed);
+    localStorage.setItem("readaloud_gemini_key", trimmed);
+    setShowSettings(false);
+    setStatusText(trimmed ? "Gemini AI Vision key saved!" : "Using default local OCR engine.");
+  };
+
   // Close card when pressing Escape or clicking outside
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === "Escape") {
         setCard((prev) => ({ ...prev, visible: false }));
+        setShowSettings(false);
       }
     };
     const handleClickOutside = (e) => {
@@ -582,7 +644,19 @@ export default function App() {
             <small>Turns any textbook page into something a student can listen to and understand</small>
           </div>
         </div>
-        <span className="tag">Prototype v0.3 · Group 4</span>
+
+        <div className="row" style={{ gap: "10px" }}>
+          <button
+            className="btn"
+            style={{ padding: "5px 12px", fontSize: "12px", borderRadius: "999px" }}
+            onClick={() => setShowSettings(true)}
+            type="button"
+            title="Configure OCR & Vision Engine"
+          >
+            ⚙️ AI Settings {apiKey.trim() ? "• Cloud" : "• Local OCR"}
+          </button>
+          <span className="tag">Prototype v0.3 · Group 4</span>
+        </div>
       </header>
 
       {/* Processing Pipeline Strip */}
@@ -594,7 +668,7 @@ export default function App() {
         <span className="arrow">→</span>
         <span className={`step ${steps.s2 === "on" ? "on" : ""} ${steps.s2 === "done" ? "done" : ""}`}>
           <b>2 Read text</b>
-          <i>AI vision</i>
+          <i>AI vision / OCR</i>
         </span>
         <span className="arrow">→</span>
         <span className={`step ${steps.s3 === "on" ? "on" : ""} ${steps.s3 === "done" ? "done" : ""}`}>
@@ -842,7 +916,9 @@ export default function App() {
                 }
                 const wordStr = m[0];
                 const key = clean(wordStr);
-                const isHard = mode !== "trans" && Boolean((doc.glossary || {})[key]);
+                const isHard =
+                  mode !== "trans" &&
+                  Boolean((doc.glossary && doc.glossary[key]) || EXTENDED_GLOSSARY[key]);
                 const isNow = activeWordLoc.p === pi && activeWordLoc.wi === wi;
                 const currentWi = wi;
 
@@ -955,12 +1031,73 @@ export default function App() {
         </div>
       )}
 
+      {/* AI Engine & Settings Modal */}
+      {showSettings && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            display: "grid",
+            placeItems: "center",
+            zIndex: 1000,
+            padding: "16px"
+          }}
+        >
+          <div
+            className="card"
+            style={{
+              position: "static",
+              maxWidth: "460px",
+              width: "100%",
+              boxShadow: "0 20px 40px rgba(0,0,0,0.25)"
+            }}
+          >
+            <h3>⚙️ AI &amp; Vision Engine Settings</h3>
+            <p style={{ color: "var(--muted)", fontSize: "13px" }}>
+              By default, ReadAloud AI uses <b>client-side Tesseract.js OCR</b> to read photos directly in your browser with <b>zero setup required</b>.
+            </p>
+            <div className="group" style={{ margin: "8px 0" }}>
+              <label className="label" htmlFor="geminiKey">
+                Optional: Google Gemini API Key (Multimodal Vision)
+              </label>
+              <input
+                id="geminiKey"
+                type="password"
+                placeholder="AIzaSy..."
+                value={tempApiKey}
+                onChange={(e) => setTempApiKey(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "9px 12px",
+                  borderRadius: "8px",
+                  border: "1px solid var(--line)",
+                  background: "var(--surface)",
+                  color: "var(--ink)",
+                  fontSize: "14px"
+                }}
+              />
+              <span className="note" style={{ fontSize: "12px" }}>
+                Entering a free Gemini 1.5 Flash key enables cloud vision enhancement and instant 10-language translations for custom textbook pages. Leave blank to use local in-browser OCR.
+              </span>
+            </div>
+            <div className="row" style={{ marginTop: "12px" }}>
+              <button className="btn primary" type="button" onClick={handleSaveSettings}>
+                Save Settings
+              </button>
+              <button className="btn" type="button" onClick={() => setShowSettings(false)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Footer */}
       <footer>
         <span>Built for the I&amp;E concept note · Innovation &amp; Entrepreneurship, Group 4</span>
-        <span>Audio runs on the device; text reading and simplifying use an AI model.</span>
+        <span>Audio runs on the device; text reading and simplifying use an AI vision model.</span>
       </footer>
     </div>
   );
 }
-
