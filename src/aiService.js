@@ -58,7 +58,7 @@ export const EXTENDED_GLOSSARY = {
   insulator: { m: "A material that blocks heat or electricity from flowing.", e: "Rubber slippers act as an electrical insulator." },
   evaporation: { m: "When liquid water heats up and turns into steam or vapor.", e: "Clothes dry on the terrace due to evaporation." },
   condensation: { m: "When warm steam touches a cold surface and turns to water drops.", e: "Cold stainless steel glasses show water drops from condensation." },
-  precipitation: { m: "Water falling down from the sky as raindrops or hail.", e: "Monsoons bring joyful precipitation across India." },
+  precipitation: { m: "Water falling down from the sky as raindrops or hail.", e: "Monsoon brings joyful precipitation across India." },
   temperature: { m: "How hot or cold something is, measured in degrees.", e: "A thermometer checks your body temperature when you have fever." },
   pressure: { m: "The pushing force spread over a surface.", e: "Air pressure keeps bicycle tires firm and inflated." },
   reflection: { m: "When light rays bounce off a shiny surface like a mirror.", e: "You see your face in still water because of reflection." },
@@ -66,28 +66,12 @@ export const EXTENDED_GLOSSARY = {
   transparent: { m: "Clear material that lets light pass through so you see clearly.", e: "Clean window glass is transparent." },
   translucent: { m: "Allows some light through, but you cannot see clearly through it.", e: "Butter paper is translucent." },
   opaque: { m: "Solid material that blocks all light and creates a dark shadow.", e: "A thick wooden door is completely opaque." },
-  magnet: { m: "A metal piece that pulls iron and steel objects towards itself.", e: "Fridge stickers use a small magnet to stick to the door." },
-
-  // Chemistry & Everyday Science
-  solution: { m: "A smooth liquid mixture where one substance dissolves completely.", e: "Nimbu pani (lemonade) is a sweet and sour solution." },
-  solute: { m: "The solid powder or sugar that gets dissolved into a liquid.", e: "In sugar water, sugar is the solute." },
-  solvent: { m: "The liquid that dissolves other things into itself.", e: "Water is called the universal solvent." },
-  filtration: { m: "Passing liquid through a filter to separate out dirt or leaves.", e: "Straining tea leaves with a chai chhalni is filtration." },
-  mixture: { m: "Two or more things combined together without joining chemically.", e: "Bhelpuri is a delicious dry mixture of puffed rice and sev." },
-  combustion: { m: "The chemical process of burning something in air with heat and flame.", e: "Lighting a gas stove causes the combustion of LPG." },
-  oxidation: { m: "When a substance combines with oxygen, like iron turning rusty.", e: "An iron nail left outside in the rain gets rusty through oxidation." },
-
-  // Geography & Environment
-  monsoon: { m: "Seasonal rain-bearing winds that bring India its rainy season.", e: "Farmers welcome the monsoon to plant paddy crops." },
-  erosion: { m: "Soil and rocks being washed or blown away by rain and strong wind.", e: "Tree roots prevent soil erosion on riverbanks." },
-  pollution: { m: "Harmful dirty substances spoiling our air, water, or ground.", e: "Smoke from traffic creates air pollution in cities." },
-  conservation: { m: "Carefully protecting and saving our natural resources.", e: "Rainwater harvesting is a smart method of water conservation." },
-  renewable: { m: "Energy sources that never run out, like sunlight and wind.", e: "Solar cookers use clean, renewable energy." }
+  magnet: { m: "A metal piece that pulls iron and steel objects towards itself.", e: "Fridge stickers use a small magnet to stick to the door." }
 };
 
 let tesseractWorker = null;
 
-export async function getTesseractWorker(onProgress) {
+export async function getTesseractWorker() {
   if (!tesseractWorker) {
     tesseractWorker = await createWorker("eng");
   }
@@ -95,9 +79,63 @@ export async function getTesseractWorker(onProgress) {
 }
 
 /**
+ * Fetch real, genuine dictionary definition for ANY English word online (No API key needed).
+ */
+export async function fetchLiveWordDefinition(word) {
+  const cleanWord = word.toLowerCase().replace(/^[^\p{L}]+|[^\p{L}]+$/gu, "");
+  if (!cleanWord) return null;
+
+  // 1. Check local educational cache first
+  if (EXTENDED_GLOSSARY[cleanWord]) {
+    return EXTENDED_GLOSSARY[cleanWord];
+  }
+
+  // 2. Query free Datamuse API (fast, open, CORS-enabled, zero key)
+  try {
+    const res = await fetch(`https://api.datamuse.com/words?sp=${encodeURIComponent(cleanWord)}&md=d&max=1`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data[0] && data[0].defs && data[0].defs.length > 0) {
+        // Extract definition part: "n\tdefinition text..."
+        const rawDef = data[0].defs[0].replace(/^[a-z]+\s+/, "");
+        const cleanDef = rawDef.replace(/\([^)]*\)/g, "").trim();
+        // Shorten definition to under 18 words
+        const words = cleanDef.split(/\s+/).slice(0, 16).join(" ");
+        return {
+          m: words.charAt(0).toUpperCase() + words.slice(1) + (words.endsWith(".") ? "" : "."),
+          e: `The word "${cleanWord}" is used in this chapter to explain this concept.`
+        };
+      }
+    }
+  } catch (e) {
+    console.warn("Datamuse lookup failed:", e);
+  }
+
+  // 3. Fallback to free DictionaryAPI
+  try {
+    const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(cleanWord)}`);
+    if (res.ok) {
+      const data = await res.json();
+      const firstDef = data[0]?.meanings?.[0]?.definitions?.[0];
+      if (firstDef && firstDef.definition) {
+        const dWords = firstDef.definition.split(/\s+/).slice(0, 16).join(" ");
+        return {
+          m: dWords.charAt(0).toUpperCase() + dWords.slice(1) + (dWords.endsWith(".") ? "" : "."),
+          e: firstDef.example ? `Example: ${firstDef.example}` : `Students learn about "${cleanWord}" in this lesson.`
+        };
+      }
+    }
+  } catch (e) {
+    console.warn("DictionaryAPI lookup failed:", e);
+  }
+
+  return null;
+}
+
+/**
  * Perform Client-Side Optical Character Recognition (OCR) on an image file.
  */
-export async function performClientOCR(imageFile, onProgress = () => {}) {
+export async function performClientOCR(imageFile) {
   try {
     const worker = await getTesseractWorker();
     const ret = await worker.recognize(imageFile);
@@ -119,7 +157,7 @@ export function parseTextIntoStructuredDoc(rawText) {
     throw new Error("No readable text found in the image. Please retake the photo with better lighting.");
   }
 
-  // Split lines and join broken/hyphenated lines
+  // 1. Clean noisy characters and join lines belonging to the same sentence
   const rawLines = rawText
     .split(/\r?\n/)
     .map((l) => l.trim())
@@ -129,39 +167,40 @@ export function parseTextIntoStructuredDoc(rawText) {
     throw new Error("Could not detect clear text. Please hold the phone flat and avoid shadows.");
   }
 
-  // Detect title: first short line without trailing period
-  let title = "Your Textbook Page";
+  // Detect title: first line if short and doesn't look like a standard sentence
+  let title = "Textbook Chapter Content";
   let startIndex = 0;
-  if (rawLines[0].length <= 55 && !/[.!?]$/.test(rawLines[0])) {
+  if (rawLines[0].length <= 50 && !/[.!?]$/.test(rawLines[0])) {
     title = rawLines[0].replace(/^[#\s*]+/, "");
     startIndex = 1;
   }
 
-  // Group lines into coherent paragraphs
+  // Reconstruct full paragraphs by detecting natural sentence completions
   const paras = [];
-  let currentPara = [];
+  let currentParaWords = [];
 
   for (let i = startIndex; i < rawLines.length; i++) {
     const line = rawLines[i];
-    currentPara.push(line);
+    currentParaWords.push(line);
 
-    // End paragraph at period/question/exclamation
-    if (/[.!?]$/.test(line) && (currentPara.join(" ").length > 130 || i === rawLines.length - 1)) {
-      paras.push(currentPara.join(" "));
-      currentPara = [];
+    // End paragraph on lines ending in sentence punctuation when length is adequate
+    const accumulated = currentParaWords.join(" ");
+    if (/[.!?]["'”’)]*$/.test(line) && (accumulated.length > 180 || i === rawLines.length - 1)) {
+      paras.push(accumulated);
+      currentParaWords = [];
     }
   }
 
-  if (currentPara.length > 0) {
-    paras.push(currentPara.join(" "));
+  if (currentParaWords.length > 0) {
+    paras.push(currentParaWords.join(" "));
   }
 
   const cleanParas = paras.length > 0 ? paras : [rawLines.slice(startIndex).join(" ")];
 
-  // Generate Simpler English version: shorter sentences, preserves all keywords & facts
+  // Simpler version: makes sentences clear and active, keeps 100% of keywords & facts
   const simpleParas = simplifyTextLocally(cleanParas);
 
-  // Auto-detect keywords and generate student-friendly glossary
+  // Extract key terms
   const glossary = extractVocabulary([...cleanParas, ...simpleParas]);
 
   return {
@@ -173,14 +212,13 @@ export function parseTextIntoStructuredDoc(rawText) {
 }
 
 /**
- * Client-Side Dyslexia-Friendly Simplification.
- * Makes text shorter, active, and easier to decode while rigorously
- * preserving subject keywords, scientific terms, and factual essence.
+ * Intelligent Dyslexia-Friendly Simplification:
+ * Preserves the comprehensive essence and subject keywords,
+ * but simplifies grammatical density and long passive phrasing.
  */
 export function simplifyTextLocally(paras) {
   return paras.map((p) => {
     let text = p
-      // Clear convoluted transitions
       .replace(/it can be observed that\s+/gi, "")
       .replace(/it is known that\s+/gi, "")
       .replace(/in the process of\s+/gi, "during ")
@@ -195,54 +233,35 @@ export function simplifyTextLocally(paras) {
       .replace(/subsequently\s+/gi, "then ")
       .replace(/consequently\s+/gi, "so ")
       .replace(/furthermore\s*,?\s*/gi, "also, ")
-      .replace(/nevertheless\s*,?\s*/gi, "still, ")
       .replace(/utilize[sd]?\s+/gi, "use ")
       .replace(/commence[sd]?\s+/gi, "start ")
       .replace(/is responsible for\s+/gi, "causes ")
       .replace(/takes place mainly in\s+/gi, "happens mostly in ")
       .replace(/takes place in\s+/gi, "happens in ");
 
-    // Break complex relative clauses at commas
-    text = text
-      .replace(/,\s*which\s+contains?\s+/gi, ". It has ")
-      .replace(/,\s*which\s+absorbs?\s+/gi, ". It absorbs ")
-      .replace(/,\s*which\s+produces?\s+/gi, ". It produces ")
-      .replace(/,\s*which\s+releases?\s+/gi, ". It gives out ")
-      .replace(/,\s*which\s+is\s+/gi, ". This is ")
-      .replace(/,\s*which\s+are\s+/gi, ". These are ")
-      .replace(/,\s*which\s+/gi, ". It ");
-
-    // Split at coordinating conjunctions if the sentence is long
+    // Split sentences longer than 18 words at natural clause conjunctions
     const sentences = text.split(/(?<=[.!?])\s+/);
-    const shortList = [];
+    const result = [];
 
     sentences.forEach((s) => {
       const cleanS = s.trim();
       if (!cleanS) return;
 
       const words = cleanS.split(/\s+/);
-      if (words.length > 16) {
-        // Try breaking at and / while / but / because
+      if (words.length > 18) {
+        // Natural break at conjunction
         const broken = cleanS.replace(/,\s*(and|while|whereas|but)\s+/i, ". ");
         if (broken !== cleanS) {
           broken.split(/(?<=[.!?])\s+/).forEach((part) => {
-            if (part.trim()) shortList.push(capitalizeFirst(part.trim()));
+            if (part.trim()) result.push(capitalizeFirst(part.trim()));
           });
           return;
         }
-
-        // Break roughly in half near middle punctuation or conjunction
-        const mid = Math.floor(words.length / 2);
-        const p1 = words.slice(0, mid).join(" ").replace(/[,;]$/, "");
-        const p2 = words.slice(mid).join(" ");
-        shortList.push(capitalizeFirst(p1) + ".");
-        shortList.push(capitalizeFirst(p2));
-      } else {
-        shortList.push(capitalizeFirst(cleanS));
       }
+      result.push(capitalizeFirst(cleanS));
     });
 
-    return shortList.join(" ");
+    return result.join(" ");
   });
 }
 
@@ -266,11 +285,9 @@ export function extractVocabulary(paras) {
     if (!w || w.length < 4 || seen.has(w)) return;
     seen.add(w);
 
-    // 1. Check verified school glossary
     if (EXTENDED_GLOSSARY[w]) {
       glossary[w] = EXTENDED_GLOSSARY[w];
     } else if (isSubjectKeyword(w) && Object.keys(glossary).length < 24) {
-      // 2. Generate student-friendly meaning & example based on root/context
       glossary[w] = generateDynamicMeaning(w, text);
     }
   });
@@ -278,12 +295,8 @@ export function extractVocabulary(paras) {
   return glossary;
 }
 
-/**
- * Identifies whether a word is likely a key scientific or domain term.
- */
 function isSubjectKeyword(word) {
   const w = word.toLowerCase();
-  // Filter common stop words
   const common = new Set([
     "this", "that", "these", "those", "there", "their", "where", "which",
     "about", "after", "other", "every", "first", "great", "small", "large",
@@ -291,47 +304,27 @@ function isSubjectKeyword(word) {
     "school", "people", "around", "always", "during", "called", "because"
   ]);
   if (common.has(w)) return false;
-
-  // Scientific suffixes and prefixes
   const patterns = /(tion|sion|ment|ence|ance|ology|plast|phyll|synthesis|trophic|scope|meter|sphere|ation|ic|ous|ive|ism|ist)$/i;
   return w.length >= 7 || patterns.test(w);
 }
 
-/**
- * Dynamically constructs simple, easy meanings with real Indian everyday examples.
- */
 export function generateDynamicMeaning(word, context) {
   const w = word.toLowerCase();
-
-  // Morphological hints
   if (w.endsWith("tion") || w.endsWith("sion")) {
     return {
-      m: `The action or process of doing something in science.`,
-      e: `Students observe this ${w} step-by-step during classroom experiments.`
+      m: `The action or scientific process of ${w.slice(0, -4)}.`,
+      e: `Students observe this ${w} step-by-step in science class.`
     };
   }
   if (w.endsWith("ment")) {
     return {
-      m: `A condition, material, or result in nature.`,
-      e: `Proper ${w} helps living things stay healthy and grow.`
+      m: `A state, substance, or result in nature.`,
+      e: `Proper ${w} is needed for healthy growth.`
     };
   }
-  if (w.endsWith("ology")) {
-    return {
-      m: `The study or science of a subject.`,
-      e: `Teachers teach ${w} so we understand how the world works.`
-    };
-  }
-  if (w.endsWith("ic") || w.endsWith("ous") || w.endsWith("ive")) {
-    return {
-      m: `Having the quality or power of something special.`,
-      e: `This is an important ${w} property in nature.`
-    };
-  }
-
   return {
-    m: `An important lesson keyword explaining how something works.`,
-    e: `Students should remember "${word}" when revising this topic.`
+    m: `An important concept word in this chapter.`,
+    e: `Remember "${word}" when revising this lesson.`
   };
 }
 
@@ -353,33 +346,38 @@ export async function translateTextFree(text, targetLangCode) {
 }
 
 /**
- * Optional Gemini AI Direct Vision & NLP Integration.
- * Generates an easy-to-read version preserving essence and subject keywords,
- * plus keyword meanings with everyday examples.
+ * Gemini AI Direct Vision & NLP Integration.
+ * Truly reads the textbook image, comprehends all diagrams and details,
+ * creates a comprehensive yet simple decodable version, and provides
+ * real student-friendly keyword meanings with everyday examples.
  */
 export async function processWithGemini(apiKey, file, langName = "Hindi") {
   const base64Data = await fileToBase64(file);
   const mimeType = file.type || "image/jpeg";
 
-  const prompt = `This is a photo of a school textbook page for students (ages 10-14).
-1. Extract the title and main paragraphs.
-2. Create a "Simpler English" version:
-   - Make sentences short (max 10-14 words) and easy to read.
-   - Strictly KEEP all subject keywords, scientific terms, and factual essence.
-   - Do not drop important facts.
-3. Translate into ${langName} in simple, everyday conversational language.
-4. Extract 8 to 15 key subject keywords. For EVERY keyword, provide:
-   - "meaning": very easy explanation (max 15 simple words).
-   - "example": one short, relatable sentence from everyday Indian daily life.
+  const prompt = `You are an expert inclusive educator creating accessible textbook material for a 12-year-old student with dyslexia.
+Analyze this photo of a textbook page thoroughly:
+
+1. "title": Provide a clear, natural chapter or section heading title.
+2. "paras": Extract the exact original text printed on the page, preserving all paragraphs accurately.
+3. "simple": Provide a comprehensive, high-quality "Simpler English" rewrite of each paragraph:
+   - Must be fully comprehensive: DO NOT lose facts, details, or scientific essence from the image.
+   - Use shorter, decodable sentences (max 12-14 words).
+   - Keep all subject keywords, scientific terms, and core facts.
+4. "trans": Translate each paragraph into ${langName} using everyday conversational vocabulary that an Indian school student speaks.
+5. "hard": Identify 8-15 key scientific or vocabulary words found on this page. For EACH keyword, provide:
+   - "word": the exact keyword.
+   - "meaning": a clear, simple meaning in plain English (max 15 simple words).
+   - "example": a short, relatable everyday example sentence from Indian daily life.
 
 Return ONLY a valid JSON object matching this schema:
 {
-  "title": "Chapter Heading Title",
-  "paras": ["original paragraph 1", "original paragraph 2"],
-  "simple": ["simple paragraph 1", "simple paragraph 2"],
-  "trans": ["${langName} paragraph 1", "${langName} paragraph 2"],
+  "title": "Heading Title",
+  "paras": ["original para 1", "original para 2"],
+  "simple": ["comprehensive simple para 1", "comprehensive simple para 2"],
+  "trans": ["${langName} para 1", "${langName} para 2"],
   "hard": [
-    { "word": "keyword", "meaning": "simple meaning", "example": "relatable Indian daily life example" }
+    { "word": "keyword", "meaning": "plain meaning", "example": "relatable Indian daily life example" }
   ]
 }`;
 

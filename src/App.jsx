@@ -7,6 +7,7 @@ import {
   processWithGemini,
   extractVocabulary,
   generateDynamicMeaning,
+  fetchLiveWordDefinition,
   EXTENDED_GLOSSARY
 } from "./aiService";
 
@@ -529,7 +530,7 @@ export default function App() {
   };
 
   // Open word card
-  const handleWordClick = (pi, wi, wordText, e) => {
+  const handleWordClick = async (pi, wi, wordText, e) => {
     const raw = wordText.replace(/^[^\p{L}]+|[^\p{L}]+$/gu, "");
     if (!raw) return;
 
@@ -550,32 +551,67 @@ export default function App() {
         visible: true,
         word: raw,
         meaning: item.m,
-        example: "Example: " + item.e,
+        example: item.e ? (item.e.startsWith("Example:") ? item.e : "Example: " + item.e) : "",
         x: left,
         y: top,
         pi,
         wi
       });
-    } else {
-      // Dynamic student-friendly vocabulary lookup
+      return;
+    }
+
+    // Instant lookup state
+    setCard({
+      visible: true,
+      word: raw,
+      meaning: "Looking up meaning…",
+      example: "",
+      x: left,
+      y: top,
+      pi,
+      wi
+    });
+
+    try {
+      const liveDef = await fetchLiveWordDefinition(raw);
+      if (liveDef) {
+        setDoc((prev) => ({
+          ...prev,
+          glossary: {
+            ...(prev.glossary || {}),
+            [key]: { m: liveDef.m, e: liveDef.e }
+          }
+        }));
+        setCard({
+          visible: true,
+          word: raw,
+          meaning: liveDef.m,
+          example: liveDef.e.startsWith("Example:") ? liveDef.e : "Example: " + liveDef.e,
+          x: left,
+          y: top,
+          pi,
+          wi
+        });
+      } else {
+        const dynamic = generateDynamicMeaning(raw, doc.paras.join(" "));
+        setCard({
+          visible: true,
+          word: raw,
+          meaning: dynamic.m,
+          example: dynamic.e.startsWith("Example:") ? dynamic.e : "Example: " + dynamic.e,
+          x: left,
+          y: top,
+          pi,
+          wi
+        });
+      }
+    } catch {
       const dynamic = generateDynamicMeaning(raw, doc.paras.join(" "));
-      const generatedMeaning = dynamic.m;
-      const generatedExample = dynamic.e.startsWith("Example:") ? dynamic.e : "Example: " + dynamic.e;
-
-      // Cache it so it shows with dotted underline
-      setDoc((prev) => ({
-        ...prev,
-        glossary: {
-          ...(prev.glossary || {}),
-          [key]: { m: generatedMeaning, e: dynamic.e }
-        }
-      }));
-
       setCard({
         visible: true,
         word: raw,
-        meaning: generatedMeaning,
-        example: generatedExample,
+        meaning: dynamic.m,
+        example: dynamic.e.startsWith("Example:") ? dynamic.e : "Example: " + dynamic.e,
         x: left,
         y: top,
         pi,
