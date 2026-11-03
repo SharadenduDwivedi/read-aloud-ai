@@ -281,3 +281,4 @@ function fileToBase64(file) {
     reader.readAsDataURL(file);
   });
 }
+
