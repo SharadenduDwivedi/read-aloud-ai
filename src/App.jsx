@@ -7,6 +7,8 @@ import {
   simplifyTextWithAI,
   translateTextWithAI,
   translateTextFree,
+  transliterateTextWithAI,
+  findHardWordsWithAI,
   processWithGemini,
   extractVocabulary,
   fetchLiveWordDefinition,
@@ -72,6 +74,8 @@ export default function App() {
     pi: null,
     wi: null
   });
+
+  const [speechCache, setSpeechCache] = useState({});
 
   const [langCode, langName] = useMemo(() => langVal.split("|"), [langVal]);
 
@@ -246,7 +250,15 @@ export default function App() {
 
   // Speech helper: chunk speech
   const chunkSpeech = useCallback((c) => {
-    const shown = splitWords(currentParas[c.p] || "");
+    const plan = voicePlan();
+    let spokenTextList = currentParas;
+    if (plan && plan.script) {
+      const key = `${langName}|${plan.script}|${mode}`;
+      if (speechCache[key]) {
+        spokenTextList = speechCache[key];
+      }
+    }
+    const shown = splitWords(spokenTextList[c.p] || currentParas[c.p] || "");
     const words = shown.slice(c.w0, c.w0 + c.n);
     const starts = [];
     let pos = 0;
@@ -255,7 +267,7 @@ export default function App() {
       pos += w.length + 1;
     });
     return { text: words.join(" "), starts };
-  }, [currentParas]);
+  }, [currentParas, voicePlan, langName, mode, speechCache]);
 
   // Fallback timer estimation
   const estimateTiming = useCallback((sp, toShown, pi, playRate) => {
@@ -335,7 +347,7 @@ export default function App() {
   }, [voicePlan, chunkSpeech, rate, markWord, estimateTiming, stopAudio]);
 
   // Play audio
-  const playAudio = useCallback(() => {
+  const playAudio = useCallback(async () => {
     if (typeof window === "undefined" || !window.speechSynthesis) {
       setStatusText("This browser can't speak text.");
       return;
@@ -346,6 +358,21 @@ export default function App() {
     if (!plan) {
       setStatusText("This device has no voices installed, so the page can't be read aloud here.");
       return;
+    }
+
+    if (plan.script && plan.kind === "translit") {
+      const key = `${langName}|${plan.script}|${mode}`;
+      if (!speechCache[key]) {
+        setStatusText(`Preparing speech voice for ${langName} with Groq AI…`);
+        try {
+          const translitParas = await transliterateTextWithAI(currentParas, langName, plan.script, { provider: aiProvider, apiKey });
+          if (translitParas && translitParas.length === currentParas.length) {
+            setSpeechCache((prev) => ({ ...prev, [key]: translitParas }));
+          }
+        } catch {
+          // Continue
+        }
+      }
     }
 
     setIsPlaying(true);
@@ -359,7 +386,7 @@ export default function App() {
 
     window.speechSynthesis.cancel();
     speakChunk();
-  }, [voicePlan, speakChunk]);
+  }, [voicePlan, speakChunk, langName, mode, currentParas, speechCache, aiProvider, apiKey]);
 
   // Mode switching
   const handleSetMode = async (newMode) => {
@@ -381,7 +408,7 @@ export default function App() {
     if (need) {
       setSteps((s) => ({ ...s, s3: "on" }));
       setIsBusy(true);
-      setStatusText(newMode === "simple" ? "Rewriting in simpler English with AI…" : `Translating into ${langName} with AI…`);
+      setStatusText(newMode === "simple" ? "Simplifying the page with Groq AI…" : `Translating into ${langName} with Groq AI…`);
 
       try {
         if (newMode === "simple") {
@@ -396,8 +423,9 @@ export default function App() {
               trans: { ...(prev.trans || {}), [langName]: translation }
             }));
           } else {
-            // Translate with AI
-            const translatedParas = await translateTextWithAI(doc.paras, langName, langCode, { provider: aiProvider, apiKey });
+            // Translate with Groq AI (translating the simplified text if student already simplified)
+            const src = doc.simple || doc.paras;
+            const translatedParas = await translateTextWithAI(src, langName, langCode, { provider: aiProvider, apiKey });
             setDoc((prev) => ({
               ...prev,
               trans: { ...(prev.trans || {}), [langName]: translatedParas }
@@ -413,11 +441,14 @@ export default function App() {
 
     setSteps((s) => ({ ...s, s3: "done" }));
     setMode(newMode);
-    setStatusText(
-      newMode === "simple"
-        ? "Showing simpler English. Same facts, easier words."
-        : `Showing ${langName}.`
-    );
+
+    if (newMode === "simple") {
+      const n0 = (doc.paras || []).join(" ").split(/\s+/).filter(Boolean).length;
+      const n1 = ((doc.simple || doc.paras) || []).join(" ").split(/\s+/).filter(Boolean).length;
+      setStatusText(n1 < n0 * 0.9 ? `Simplified: ${n0} → ${n1} words. Same facts, easier words.` : "Showing simpler English. Same facts, easier words.");
+    } else {
+      setStatusText(`Showing ${langName}.`);
+    }
   };
 
   // Language selection change
@@ -431,7 +462,7 @@ export default function App() {
       if (!doc.trans || !doc.trans[newName]) {
         setSteps((s) => ({ ...s, s3: "on" }));
         setIsBusy(true);
-        setStatusText(`Translating into ${newName} with AI…`);
+        setStatusText(`Translating into ${newName} with Groq AI…`);
         try {
           if (SAMPLE.trans && SAMPLE.trans[newName] && doc.title === SAMPLE.title) {
             const translation = SAMPLE.trans[newName];
@@ -440,7 +471,8 @@ export default function App() {
               trans: { ...(prev.trans || {}), [newName]: translation }
             }));
           } else {
-            const translatedParas = await translateTextWithAI(doc.paras, newName, newCode, { provider: aiProvider, apiKey });
+            const src = doc.simple || doc.paras;
+            const translatedParas = await translateTextWithAI(src, newName, newCode, { provider: aiProvider, apiKey });
             setDoc((prev) => ({
               ...prev,
               trans: { ...(prev.trans || {}), [newName]: translatedParas }
@@ -491,6 +523,16 @@ export default function App() {
     setSrcNote(`Loaded ${paras.length} paragraph${paras.length > 1 ? "s" : ""} of pasted text.`);
     setStatusText("Text ready! Tap 'Simpler English' to simplify or 'My language' to translate.");
     setShowPaste(false);
+
+    // Pick up to 12 hard words in background with Groq AI
+    findHardWordsWithAI(t, { provider: aiProvider, apiKey }).then((aiGlossary) => {
+      if (aiGlossary && Object.keys(aiGlossary).length > 0) {
+        setDoc((prev) => ({
+          ...prev,
+          glossary: { ...(prev.glossary || {}), ...aiGlossary }
+        }));
+      }
+    }).catch(() => {});
   };
 
   // Photo upload with Real AI Vision / OCR
@@ -519,6 +561,18 @@ export default function App() {
       setSteps({ s1: "done", s2: "done", s3: null, s4: null });
       setSrcNote(`Read ${parsedDoc.paras.length} paragraph${parsedDoc.paras.length > 1 ? "s" : ""} from your photo.`);
       setStatusText("Text extracted! Tap 'Simpler English' to simplify or 'My language' to translate.");
+
+      // Pick up to 12 hard words with Groq AI if needed
+      if (!parsedDoc.glossary || Object.keys(parsedDoc.glossary).length === 0) {
+        findHardWordsWithAI(parsedDoc.paras.join("\n"), { provider: aiProvider, apiKey }).then((aiGlossary) => {
+          if (aiGlossary && Object.keys(aiGlossary).length > 0) {
+            setDoc((prev) => ({
+              ...prev,
+              glossary: { ...(prev.glossary || {}), ...aiGlossary }
+            }));
+          }
+        }).catch(() => {});
+      }
     } catch (err) {
       console.error("Photo vision processing error:", err);
       setSteps({ s1: "done", s2: null, s3: null, s4: null });
@@ -536,7 +590,7 @@ export default function App() {
 
     const key = clean(raw);
     const gl = doc.glossary || {};
-    const item = gl[key] || EXTENDED_GLOSSARY[key];
+    const item = gl[key] || (mode !== "trans" ? EXTENDED_GLOSSARY[key] : null);
 
     const rect = e.currentTarget.getBoundingClientRect();
     const cardWidth = 320;
@@ -546,7 +600,7 @@ export default function App() {
     const below = rect.bottom + cardHeight + 12 < window.innerHeight;
     const top = below ? rect.bottom + 8 : Math.max(16, rect.top - cardHeight - 8);
 
-    if (item && item.m && !item.needLookup && mode !== "trans") {
+    if (item && item.m && !item.needLookup) {
       setCard({
         visible: true,
         word: raw,
@@ -564,7 +618,7 @@ export default function App() {
     setCard({
       visible: true,
       word: raw,
-      meaning: "Looking up meaning in online dictionary…",
+      meaning: "Looking up meaning with Groq AI…",
       example: "",
       x: left,
       y: top,
@@ -572,17 +626,22 @@ export default function App() {
       wi
     });
 
+    const contextSentence = currentParas[pi] || "";
+    const inLang = mode === "trans" ? langName : "simple English";
+
     try {
-      const liveDef = await fetchLiveWordDefinition(raw, apiKey, aiProvider);
+      const liveDef = await fetchLiveWordDefinition(raw, contextSentence, inLang, apiKey, aiProvider);
       if (liveDef) {
         const cleanedEx = cleanExample(liveDef.e);
-        setDoc((prev) => ({
-          ...prev,
-          glossary: {
-            ...(prev.glossary || {}),
-            [key]: { m: liveDef.m, e: cleanedEx }
-          }
-        }));
+        if (mode !== "trans") {
+          setDoc((prev) => ({
+            ...prev,
+            glossary: {
+              ...(prev.glossary || {}),
+              [key]: { m: liveDef.m, e: cleanedEx }
+            }
+          }));
+        }
         setCard({
           visible: true,
           word: raw,
